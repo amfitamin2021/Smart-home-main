@@ -31,6 +31,9 @@
         </div>
       </div>
 
+      <!-- Телевизор -->
+      <TVWidget />
+
       <!-- Освещение -->
       <div class="bg-white p-4 rounded-lg shadow-sm">
         <div class="flex justify-between items-center mb-4">
@@ -134,198 +137,209 @@
           </div>
         </div>
       </div>
-    </div>
-
-    <!-- Энергопотребление -->
-    <div class="bg-white p-4 rounded-lg shadow-sm mb-4">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-lg font-medium">Энергопотребление</h2>
-        <div class="flex space-x-2 text-sm">
-          <button 
-            class="px-3 py-1 rounded-md" 
-            :class="energyPeriod === 'day' ? 'bg-blue-100 text-blue-600' : ''"
-            @click="setEnergyPeriod('day')"
-          >
-            День
-          </button>
-          <button 
-            class="px-3 py-1 rounded-md" 
-            :class="energyPeriod === 'week' ? 'bg-blue-100 text-blue-600' : ''"
-            @click="setEnergyPeriod('week')"
-          >
-            Неделя
-          </button>
-          <button 
-            class="px-3 py-1 rounded-md" 
-            :class="energyPeriod === 'month' ? 'bg-blue-100 text-blue-600' : ''"
-            @click="setEnergyPeriod('month')"
-          >
-            Месяц
-          </button>
-        </div>
-      </div>
-      <div class="h-64 bg-gray-50 rounded-lg mb-4 flex items-center justify-center">
-        <!-- Здесь будет график энергопотребления -->
-        <p class="text-gray-400">График энергопотребления ({{ getEnergyPeriodText }})</p>
-      </div>
-      <div class="flex justify-between items-center text-sm">
-        <div>
-          <div class="text-gray-500">Сегодня:</div>
-          <div class="font-medium">{{ energy.today }} кВт·ч</div>
-          <div class="text-gray-500">За день: {{ energy.forDay }} кВт·ч</div>
-        </div>
-        <div class="text-right">
-          <div class="text-gray-500">Стоимость сегодня:</div>
-          <div class="font-medium">{{ energy.cost }} ₽</div>
-          <div class="text-gray-500">Прогноз на месяц: {{ energy.forecast }} ₽</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Уведомления -->
-    <div class="bg-white p-4 rounded-lg shadow-sm">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-lg font-medium">Уведомления</h2>
-        <span class="px-2 py-1 bg-red-100 text-red-600 rounded-full text-xs">{{ getNewNotificationsCount }} новых</span>
-      </div>
-      <div class="space-y-3">
-        <div 
-          v-for="notification in notifications" 
-          :key="notification.id" 
-          :class="{
-            'bg-red-50 border-l-4 border-red-500': notification.type === 'danger',
-            'bg-yellow-50 border-l-4 border-yellow-500': notification.type === 'warning',
-            'bg-green-50 border-l-4 border-green-500': notification.type === 'success'
-          }"
-          class="p-3 rounded-lg"
-        >
-          <div class="flex items-start">
-            <i 
-              :class="{
-                'fas fa-exclamation-circle text-red-500': notification.type === 'danger',
-                'fas fa-exclamation-triangle text-yellow-500': notification.type === 'warning',
-                'fas fa-check-circle text-green-500': notification.type === 'success'
-              }"
-              class="mr-2 mt-0.5"
-            ></i>
-            <div>
-              <p class="font-medium">{{ notification.message }}</p>
-            </div>
+      
+      <!-- Энергопотребление -->
+      <div class="bg-white p-4 rounded-lg shadow-sm mb-4">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-lg font-medium">Энергопотребление</h2>
+          <div class="flex space-x-2 text-sm">
+            <button 
+              class="px-3 py-1 rounded-md" 
+              :class="energyPeriod === 'day' ? 'bg-blue-100 text-blue-600' : ''"
+              @click="setEnergyPeriod('day')"
+            >
+              День
+            </button>
+            <button 
+              class="px-3 py-1 rounded-md" 
+              :class="energyPeriod === 'week' ? 'bg-blue-100 text-blue-600' : ''"
+              @click="setEnergyPeriod('week')"
+            >
+              Неделя
+            </button>
+            <button 
+              class="px-3 py-1 rounded-md" 
+              :class="energyPeriod === 'month' ? 'bg-blue-100 text-blue-600' : ''"
+              @click="setEnergyPeriod('month')"
+            >
+              Месяц
+            </button>
           </div>
         </div>
-        <div class="text-center mt-4">
-          <button @click="viewAllNotifications" class="text-blue-500 hover:underline text-sm">Посмотреть все уведомления</button>
+        <div class="h-64 bg-gray-50 rounded-lg mb-4 flex items-center justify-center">
+          <!-- Здесь будет график энергопотребления -->
+          <p class="text-gray-400">График энергопотребления ({{ getEnergyPeriodText }})</p>
+        </div>
+        <div class="flex justify-between items-center text-sm">
+          <div>
+            <div class="text-gray-500">Сегодня:</div>
+            <div class="font-medium">{{ energy.today }} кВт·ч</div>
+            <div class="text-gray-500">За день: {{ energy.forDay }} кВт·ч</div>
+          </div>
+          <div class="text-right">
+            <div class="text-gray-500">Стоимость сегодня:</div>
+            <div class="font-medium">{{ energy.cost }} ₽</div>
+            <div class="text-gray-500">Прогноз на месяц: {{ energy.forecast }} ₽</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Уведомления -->
+      <div class="bg-white p-4 rounded-lg shadow-sm">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-lg font-medium">Уведомления</h2>
+          <span class="px-2 py-1 bg-red-100 text-red-600 rounded-full text-xs">{{ getNewNotificationsCount }} новых</span>
+        </div>
+        <div class="space-y-3">
+          <div 
+            v-for="notification in notifications" 
+            :key="notification.id" 
+            :class="{
+              'bg-red-50 border-l-4 border-red-500': notification.type === 'danger',
+              'bg-yellow-50 border-l-4 border-yellow-500': notification.type === 'warning',
+              'bg-green-50 border-l-4 border-green-500': notification.type === 'success'
+            }"
+            class="p-3 rounded-lg"
+          >
+            <div class="flex items-start">
+              <i 
+                :class="{
+                  'fas fa-exclamation-circle text-red-500': notification.type === 'danger',
+                  'fas fa-exclamation-triangle text-yellow-500': notification.type === 'warning',
+                  'fas fa-check-circle text-green-500': notification.type === 'success'
+                }"
+                class="mr-2 mt-0.5"
+              ></i>
+              <div>
+                <p class="font-medium">{{ notification.message }}</p>
+              </div>
+            </div>
+          </div>
+          <div class="text-center mt-4">
+            <button @click="viewAllNotifications" class="text-blue-500 hover:underline text-sm">Посмотреть все уведомления</button>
+          </div>
         </div>
       </div>
     </div>
   </div>
 </template>
 
-<script>
-export default {
-  name: 'Dashboard',
-  data() {
-    return {
-      temperature: {
-        current: 23,
-        target: 22
-      },
-      lights: {
-        livingRoom: true,
-        kitchen: false,
-        bedroom: false,
-        brightness: 80
-      },
-      security: {
-        active: true,
-        guardMode: true
-      },
-      energy: {
-        today: 3.2,
-        forDay: 3.2,
-        cost: 25.60,
-        forecast: 780
-      },
-      energyPeriod: 'day', // 'day', 'week', 'month'
-      notifications: [
-        {
-          id: 1,
-          type: 'danger', 
-          icon: 'exclamation-circle',
-          message: 'Обнаружено движение (Гараж)',
-          isNew: true
-        },
-        {
-          id: 2,
-          type: 'warning',
-          icon: 'exclamation-triangle',
-          message: 'Низкий заряд батареи (Датчик)',
-          isNew: true
-        },
-        {
-          id: 3, 
-          type: 'success',
-          icon: 'check-circle',
-          message: 'Завершено обновление ПО',
-          isNew: false
-        }
-      ]
-    }
+<script setup>
+import { ref, reactive, onMounted, computed } from 'vue';
+import { useRouter } from 'vue-router';
+import { useToast } from 'vue-toastification';
+import TVWidget from '../components/dashboard/TVWidget.vue';
+
+const router = useRouter();
+
+const temperature = ref({
+  current: 23,
+  target: 22
+});
+
+const lights = ref({
+  livingRoom: true,
+  kitchen: false,
+  bedroom: false,
+  brightness: 80
+});
+
+const security = ref({
+  active: true,
+  guardMode: true
+});
+
+const energy = ref({
+  today: 3.2,
+  forDay: 3.2,
+  cost: 25.60,
+  forecast: 780
+});
+
+const energyPeriod = ref('day'); // 'day', 'week', 'month'
+
+const notifications = ref([
+  {
+    id: 1,
+    type: 'danger', 
+    icon: 'exclamation-circle',
+    message: 'Обнаружено движение (Гараж)',
+    isNew: true
   },
-  computed: {
-    getEnergyPeriodText() {
-      switch(this.energyPeriod) {
-        case 'day': return 'за день';
-        case 'week': return 'за неделю';
-        case 'month': return 'за месяц';
-        default: return 'за день';
-      }
-    },
-    getNewNotificationsCount() {
-      return this.notifications.filter(n => n.isNew).length;
-    }
+  {
+    id: 2,
+    type: 'warning',
+    icon: 'exclamation-triangle',
+    message: 'Низкий заряд батареи (Датчик)',
+    isNew: true
   },
-  methods: {
-    increaseTemperature() {
-      if (this.temperature.target < 30) {
-        this.temperature.target += 0.5;
-        // В реальном приложении здесь был бы запрос к API
-        console.log(`Установка целевой температуры: ${this.temperature.target}°C`);
-      }
-    },
-    decreaseTemperature() {
-      if (this.temperature.target > 16) {
-        this.temperature.target -= 0.5;
-        // В реальном приложении здесь был бы запрос к API
-        console.log(`Установка целевой температуры: ${this.temperature.target}°C`);
-      }
-    },
-    toggleLight(room) {
-      // В реальном приложении здесь был бы запрос к API
-      console.log(`${room}: ${this.lights[room] ? 'включен' : 'выключен'}`);
-    },
-    updateBrightness(value) {
-      // В реальном приложении здесь был бы запрос к API
-      console.log(`Установка яркости: ${value}%`);
-    },
-    toggleSecurityMode() {
-      this.security.active = this.security.guardMode;
-      // В реальном приложении здесь был бы запрос к API
-      console.log(`Режим охраны: ${this.security.guardMode ? 'включен' : 'выключен'}`);
-    },
-    setEnergyPeriod(period) {
-      this.energyPeriod = period;
-      // В реальном приложении здесь был бы запрос к API для получения данных за выбранный период
-      console.log(`Выбран период: ${period}`);
-    },
-    viewAllNotifications() {
-      this.$router.push('/notifications');
-    },
-    markAllNotificationsAsRead() {
-      this.notifications.forEach(n => n.isNew = false);
-      // В реальном приложении здесь был бы запрос к API
-      console.log('Все уведомления отмечены как прочитанные');
-    }
+  {
+    id: 3, 
+    type: 'success',
+    icon: 'check-circle',
+    message: 'Завершено обновление ПО',
+    isNew: false
   }
-}
+]);
+
+const getEnergyPeriodText = computed(() => {
+  switch(energyPeriod.value) {
+    case 'day': return 'за день';
+    case 'week': return 'за неделю';
+    case 'month': return 'за месяц';
+    default: return 'за день';
+  }
+});
+
+const getNewNotificationsCount = computed(() => {
+  return notifications.value.filter(n => n.isNew).length;
+});
+
+const increaseTemperature = () => {
+  if (temperature.value.target < 30) {
+    temperature.value.target += 0.5;
+    // В реальном приложении здесь был бы запрос к API
+    console.log(`Установка целевой температуры: ${temperature.value.target}°C`);
+  }
+};
+
+const decreaseTemperature = () => {
+  if (temperature.value.target > 16) {
+    temperature.value.target -= 0.5;
+    // В реальном приложении здесь был бы запрос к API
+    console.log(`Установка целевой температуры: ${temperature.value.target}°C`);
+  }
+};
+
+const toggleLight = (room) => {
+  // В реальном приложении здесь был бы запрос к API
+  console.log(`${room}: ${lights.value[room] ? 'включен' : 'выключен'}`);
+};
+
+const updateBrightness = (value) => {
+  // В реальном приложении здесь был бы запрос к API
+  console.log(`Установка яркости: ${value}%`);
+};
+
+const toggleSecurityMode = () => {
+  security.value.active = security.value.guardMode;
+  // В реальном приложении здесь был бы запрос к API
+  console.log(`Режим охраны: ${security.value.guardMode ? 'включен' : 'выключен'}`);
+};
+
+const setEnergyPeriod = (period) => {
+  energyPeriod.value = period;
+  // В реальном приложении здесь был бы запрос к API для получения данных за выбранный период
+  console.log(`Выбран период: ${period}`);
+};
+
+const viewAllNotifications = () => {
+  router.push('/notifications');
+};
+
+const markAllNotificationsAsRead = () => {
+  notifications.value.forEach(n => n.isNew = false);
+  // В реальном приложении здесь был бы запрос к API
+  console.log('Все уведомления отмечены как прочитанные');
+};
 </script> 

@@ -81,8 +81,8 @@
                         @change="toggleTV(device)"
                       />
                       <span class="toggle-slider"></span>
-                    </label>
-                  </div>
+                </label>
+              </div>
                 </div>
                 
                 <!-- Телевизор, отображение -->
@@ -1464,7 +1464,7 @@ export default {
       
       return `${sourceLabel}, канал ${channel}`
     }
-
+    
     return {
       searchQuery,
       selectedRoom,
