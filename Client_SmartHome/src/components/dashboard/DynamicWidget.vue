@@ -52,12 +52,20 @@ import { useDeviceStore } from '../../store/deviceStore';
 import TVWidget from './TVWidget.vue';
 import HumidityWidget from './HumidityWidget.vue';
 import TemperatureWidget from './TemperatureWidget.vue';
+import LightWidget from './LightWidget.vue';
+import GenericClimateWidget from './GenericClimateWidget.vue';
+import GenericApplianceWidget from './GenericApplianceWidget.vue';
+import GenericWidget from './GenericWidget.vue';
 
 // Зарегистрируем все компоненты виджетов
 const components = {
   TVWidget: markRaw(TVWidget),
   HumidityWidget: markRaw(HumidityWidget),
-  TemperatureWidget: markRaw(TemperatureWidget)
+  TemperatureWidget: markRaw(TemperatureWidget),
+  LightWidget: markRaw(LightWidget),
+  GenericClimateWidget: markRaw(GenericClimateWidget),
+  GenericApplianceWidget: markRaw(GenericApplianceWidget),
+  GenericWidget: markRaw(GenericWidget)
 };
 
 const props = defineProps({
@@ -87,12 +95,14 @@ const getDefaultTitle = computed(() => {
   }
   
   switch (props.widget.type) {
-    case 'tv':
-      return 'Телевизор';
-    case 'humidity':
-      return 'Датчик влажности';
-    case 'temperature':
-      return 'Датчик температуры';
+    case 'appliances':
+      return 'Бытовая техника';
+    case 'climate':
+      return 'Датчики климата';
+    case 'lighting':
+      return 'Освещение';
+    case 'notifications':
+      return 'Уведомления';
     default:
       return 'Виджет';
   }

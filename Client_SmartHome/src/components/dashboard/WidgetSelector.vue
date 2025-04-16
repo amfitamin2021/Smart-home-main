@@ -163,36 +163,39 @@ const availableWidgetTypes = computed(() => {
 const devicesByType = computed(() => {
   if (!selectedWidgetType.value) return [];
   
-  switch (selectedWidgetType.value.id) {
-    case 'tv':
-      return deviceStore.devices.filter(d => 
-        (d.category === 'APPLIANCES' && d.subType === 'TV') || d.type === 'TV'
-      );
-    case 'humidity':
-      return deviceStore.devices.filter(d => 
-        d.type === 'HUMIDITY_SENSOR' || 
-        (d.category === 'CLIMATE' && d.subType === 'HUMIDITY_SENSOR')
-      );
-    case 'temperature':
-      return deviceStore.devices.filter(d => 
-        d.type === 'TEMPERATURE_SENSOR' || 
-        (d.category === 'CLIMATE' && d.subType === 'TEMPERATURE_SENSOR')
-      );
-    default:
-      return [];
-  }
+  // Если выбран виджет уведомлений, не нужны устройства
+  if (selectedWidgetType.value.id === 'notifications') return [];
+  
+  // Для остальных виджетов фильтруем по категории
+  return deviceStore.devices.filter(device => {
+    if (selectedWidgetType.value.category === device.category) {
+      // Проверяем, нет ли уже виджета для этого устройства
+      return !dashboardStore.hasWidgetForDevice(device.id);
+    }
+    return false;
+  });
 });
 
 // Метод для получения иконки устройства
 const getDeviceIcon = (device) => {
-  if (device.type === 'TV' || (device.category === 'APPLIANCES' && device.subType === 'TV')) {
-    return 'fa-tv';
-  } else if (device.type === 'HUMIDITY_SENSOR' || (device.category === 'CLIMATE' && device.subType === 'HUMIDITY_SENSOR')) {
-    return 'fa-tint';
-  } else if (device.type === 'TEMPERATURE_SENSOR' || (device.category === 'CLIMATE' && device.subType === 'TEMPERATURE_SENSOR')) {
-    return 'fa-thermometer-half';
+  switch (device.category) {
+    case 'APPLIANCES':
+      if (device.type === 'TV' || device.subType === 'TV') {
+        return 'fa-tv';
+      }
+      return 'fa-plug';
+    case 'CLIMATE':
+      if (device.type === 'HUMIDITY_SENSOR' || device.subType === 'HUMIDITY_SENSOR') {
+        return 'fa-tint';
+      } else if (device.type === 'TEMPERATURE_SENSOR' || device.subType === 'TEMPERATURE_SENSOR') {
+        return 'fa-thermometer-half';
+      }
+      return 'fa-cloud';
+    case 'LIGHTING':
+      return 'fa-lightbulb';
+    default:
+      return 'fa-cog';
   }
-  return 'fa-cog';
 };
 
 // Проверка возможности добавления виджета
@@ -217,13 +220,11 @@ const selectWidgetType = (type) => {
   
   selectedWidgetType.value = type;
   
-  // Если для выбранного виджета не требуется устройство (виджет уведомлений или погоды)
-  if (type.id === 'notifications' || type.id === 'weather') {
+  // Если для выбранного виджета не требуется устройство (виджет уведомлений)
+  if (type.id === 'notifications') {
     step.value = 3;
     // Для виджета уведомлений предзаполняем название
-    if (type.id === 'notifications') {
-      widgetSettings.value.title = 'Уведомления системы';
-    }
+    widgetSettings.value.title = 'Уведомления системы';
   }
 };
 
@@ -246,9 +247,12 @@ const nextStep = () => {
 const addWidget = () => {
   if (selectedWidgetType.value) {
     const deviceId = selectedDevice.value ? selectedDevice.value.id : null;
+    const deviceType = selectedDevice.value ? selectedDevice.value.type : null;
+    
     dashboardStore.addWidget(
       selectedWidgetType.value.id,
       deviceId,
+      deviceType,
       widgetSettings.value
     );
     

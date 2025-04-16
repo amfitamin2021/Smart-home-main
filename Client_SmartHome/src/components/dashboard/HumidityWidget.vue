@@ -71,25 +71,6 @@
         </div>
       </div>
     </div>
-    
-    <button 
-      class="w-full py-2 text-blue-600 text-sm flex items-center justify-center gap-1 mt-4"
-      @click="showDetails = !showDetails"
-    >
-      {{ showDetails ? 'Скрыть детали' : 'Показать детали' }}
-      <i class="fas" :class="showDetails ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
-    </button>
-
-    <div v-if="showDetails" class="border-t pt-4 mt-2">
-      <h4 class="text-gray-700 font-medium mb-3">Рекомендации по влажности</h4>
-      <div class="flex items-start gap-3 p-3 bg-blue-50 rounded-lg mb-3">
-        <i class="fas fa-info-circle text-blue-500 mt-1"></i>
-        <div>
-          <p class="text-blue-700 font-medium">{{ humidityStatus.label }}</p>
-          <p class="text-sm text-blue-600">{{ humidityStatus.recommendation || 'Влажность в пределах нормы, дополнительных действий не требуется.' }}</p>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -111,7 +92,6 @@ const props = defineProps({
 });
 
 const deviceStore = useDeviceStore();
-const showDetails = ref(false);
 const isEnabled = ref(props.device?.active || false);
 
 // Константы для круговой диаграммы

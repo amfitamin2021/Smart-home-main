@@ -5,28 +5,28 @@ export const useDashboardStore = defineStore('dashboard', {
     widgets: [],
     availableWidgetTypes: [
       { 
-        id: 'tv', 
-        name: 'Телевизор', 
-        description: 'Управление телевизором', 
+        id: 'appliances', 
+        name: 'Бытовая техника', 
+        description: 'Управление бытовой техникой', 
         icon: 'fa-tv',
-        component: 'TVWidget',
-        allowsMultiple: false
+        allowsMultiple: true,
+        category: 'APPLIANCES'
       },
       { 
-        id: 'humidity', 
-        name: 'Датчик влажности', 
-        description: 'Отображение показателей влажности', 
-        icon: 'fa-tint',
-        component: 'HumidityWidget',
-        allowsMultiple: false
+        id: 'climate', 
+        name: 'Датчики климата', 
+        description: 'Отображение показателей климата', 
+        icon: 'fa-temperature-half',
+        allowsMultiple: true,
+        category: 'CLIMATE'
       },
       { 
-        id: 'temperature', 
-        name: 'Датчик температуры', 
-        description: 'Отображение показателей температуры', 
-        icon: 'fa-thermometer-half',
-        component: 'TemperatureWidget',
-        allowsMultiple: false
+        id: 'lighting', 
+        name: 'Освещение', 
+        description: 'Управление умным освещением', 
+        icon: 'fa-lightbulb',
+        allowsMultiple: true,
+        category: 'LIGHTING'
       },
       {
         id: 'notifications',
@@ -36,14 +36,6 @@ export const useDashboardStore = defineStore('dashboard', {
         description: 'Показывает последние уведомления системы',
         icon: 'fa-bell',
         recommended: true
-      },
-      { 
-        id: 'smartLight', 
-        name: 'Умная лампа', 
-        description: 'Управление умной лампой', 
-        icon: 'fa-lightbulb',
-        component: 'LightWidget',
-        allowsMultiple: false
       }
     ]
   }),
@@ -65,30 +57,65 @@ export const useDashboardStore = defineStore('dashboard', {
       
       // Иначе проверяем, есть ли уже такой виджет
       return !state.widgets.some(widget => widget.type === typeId);
+    },
+
+    // Проверить, есть ли уже виджет для конкретного устройства
+    hasWidgetForDevice: (state) => (deviceId) => {
+      return state.widgets.some(widget => widget.deviceId === deviceId);
     }
   },
   
   actions: {
     // Добавить новый виджет
-    addWidget(type, deviceId, settings = {}) {
+    addWidget(type, deviceId, deviceType, settings = {}) {
       const widgetType = this.availableWidgetTypes.find(t => t.id === type);
       if (!widgetType) {
         console.error(`Тип виджета ${type} не найден`);
         return;
       }
       
-      // Проверяем, можно ли добавить еще один такой виджет
-      if (!this.canAddWidgetType(type)) {
-        console.warn(`Виджет типа ${type} уже добавлен и не может быть добавлен повторно`);
+      // Проверяем, нет ли уже виджета для этого устройства
+      if (deviceId && this.hasWidgetForDevice(deviceId)) {
+        console.warn(`Виджет для устройства ${deviceId} уже существует`);
         return;
+      }
+      
+      // Определяем компонент виджета на основе типа устройства
+      let component;
+      switch (type) {
+        case 'appliances':
+          if (deviceType === 'TV') {
+            component = 'TVWidget';
+          } else {
+            component = 'GenericApplianceWidget';
+          }
+          break;
+        case 'climate':
+          if (deviceType === 'TEMPERATURE_SENSOR') {
+            component = 'TemperatureWidget';
+          } else if (deviceType === 'HUMIDITY_SENSOR') {
+            component = 'HumidityWidget';
+          } else {
+            component = 'GenericClimateWidget';
+          }
+          break;
+        case 'lighting':
+          component = 'LightWidget';
+          break;
+        case 'notifications':
+          component = 'NotificationsWidget';
+          break;
+        default:
+          component = 'GenericWidget';
       }
       
       const newWidget = {
         id: `widget_${Date.now()}`,
         type,
         deviceId,
+        deviceType,
         settings,
-        component: widgetType.component,
+        component,
         createdAt: new Date().toISOString()
       };
       
@@ -147,11 +174,12 @@ export const useDashboardStore = defineStore('dashboard', {
     
     // Добавить виджеты по умолчанию
     addDefaultWidgets() {
-      // Добавляем только телевизор, так как он у нас уже функционирует
+      // Начинаем с пустого массива виджетов
       this.widgets = [];
       
-      // В будущем здесь можно добавить больше виджетов по умолчанию
-      this.addWidget('tv', null);
+      // В будущем здесь можно добавить виджеты по умолчанию, если необходимо
+      // Например, добавить виджет уведомлений
+      this.addWidget('notifications', null, null);
     },
     
     // Сбросить все виджеты к настройкам по умолчанию
