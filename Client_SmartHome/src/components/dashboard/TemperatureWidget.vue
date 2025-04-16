@@ -31,7 +31,7 @@
             cy="60"
           />
           <circle
-            class="text-blue-600"
+            class="text-red-600"
             stroke-width="12"
             :stroke-dasharray="circumference"
             :stroke-dashoffset="dashOffset"
@@ -100,11 +100,9 @@
           </button>
         </div>
         
-        <TemperatureChart 
-          :deviceId="deviceId"
-          color="#3B82F6"
-          :updateInterval="5000"
-        />
+        <div class="text-center p-4 bg-gray-100 rounded">
+          График временно недоступен
+        </div>
       </div>
 
       <div class="mt-4 border-t pt-4">
@@ -165,13 +163,9 @@
 import { useDeviceStore } from '@/store/deviceStore'
 import { formatDistanceToNow } from 'date-fns'
 import { ru } from 'date-fns/locale'
-import TemperatureChart from '@/components/devices/TemperatureChart.vue'
 
 export default {
   name: 'TemperatureWidget',
-  components: {
-    TemperatureChart
-  },
   props: {
     deviceId: {
       type: String,
@@ -180,7 +174,7 @@ export default {
   },
   data() {
     return {
-      isEnabled: true,
+      isEnabled: false,
       showDetails: false,
       circumference: 2 * Math.PI * 54,
       selectedPeriod: '24ч',
@@ -237,13 +231,10 @@ export default {
   methods: {
     async toggleState() {
       try {
-        await useDeviceStore().updateDeviceProperty(
-          this.deviceId,
-          'enabled',
-          this.isEnabled
-        )
+        await useDeviceStore().toggleDevice(this.deviceId, this.isEnabled);
       } catch (error) {
-        console.error('Ошибка при обновлении состояния:', error)
+        console.error('Ошибка при обновлении состояния:', error);
+        this.isEnabled = !this.isEnabled;
       }
     },
     formatLastUpdated(timestamp) {
@@ -251,7 +242,7 @@ export default {
       return formatDistanceToNow(new Date(timestamp), { addSuffix: true, locale: ru })
     },
     refreshData() {
-      useDeviceStore().fetchDevice(this.deviceId)
+      useDeviceStore().fetchDevices()
     },
     setChartPeriod(period) {
       this.selectedPeriod = period
@@ -259,7 +250,7 @@ export default {
     startAutoUpdate() {
       this.stopAutoUpdate()
       this.updateInterval = setInterval(() => {
-        useDeviceStore().fetchDevice(this.deviceId)
+        useDeviceStore().fetchDevices()
       }, 5000)
     },
     stopAutoUpdate() {
@@ -271,6 +262,9 @@ export default {
   },
   mounted() {
     this.startAutoUpdate()
+    if (this.device) {
+      this.isEnabled = this.device.active;
+    }
   },
   beforeUnmount() {
     this.stopAutoUpdate()

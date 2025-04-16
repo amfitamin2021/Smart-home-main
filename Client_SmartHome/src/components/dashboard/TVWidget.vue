@@ -1,8 +1,5 @@
 <template>
   <div class="dashboard-widget tv-widget">
-    <div class="widget-header">
-      <h3>Телевизор</h3>
-    </div>
     <div class="widget-content">
       <!-- Для отладки -->
       <div class="debug-info" v-if="false">
@@ -208,22 +205,12 @@ const changeVolume = async (change) => {
   border-radius: 10px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   overflow: hidden;
-}
-
-.widget-header {
-  background-color: #4a4e69;
-  color: white;
-  padding: 12px 15px;
-}
-
-.widget-header h3 {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 500;
+  height: 100%;
 }
 
 .widget-content {
   padding: 15px;
+  height: 100%;
 }
 
 .tv-status {
