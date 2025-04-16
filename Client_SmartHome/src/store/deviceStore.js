@@ -63,7 +63,28 @@ export const useDeviceStore = defineStore('devices', {
       const properties = backendDevice.properties || {}
       
       // Преобразуем значения из строк в нужные типы данных
-      const active = properties.attr_server_active === 'true' && properties.tb_power !== 'off'
+      // Для определения активности используем умную логику в зависимости от типа устройства
+      let active;
+      if (backendDevice.category === 'APPLIANCES' && backendDevice.subType === 'TV') {
+        // Для ТВ требуются оба свойства для активности
+        active = properties.attr_server_active === 'true' && properties.tb_power === 'on';
+      } else {
+        // Для других устройств проверяем оба свойства, но достаточно любого из них
+        const serverActive = properties.attr_server_active === 'true';
+        const powerOn = properties.tb_power === 'on';
+        
+        if (properties.attr_server_active !== undefined && properties.tb_power !== undefined) {
+          // Если есть оба свойства, используем активное если хотя бы одно из них активно
+          active = serverActive || powerOn;
+        } else if (properties.attr_server_active !== undefined) {
+          active = serverActive;
+        } else if (properties.tb_power !== undefined) {
+          active = powerOn;
+        } else {
+          active = false; // По умолчанию устройство не активно
+        }
+      }
+      
       const brightness = parseInt(properties.brightness || properties.tb_brightness || '0')
       const color = properties.color ? `#${properties.color}` : (properties.tb_color ? `#${properties.tb_color}` : '#FFFFFF')
       const online = backendDevice.status !== 'OFFLINE'
@@ -276,8 +297,21 @@ export const useDeviceStore = defineStore('devices', {
             this.devices[deviceIndex].rawProperties = { ...this.devices[deviceIndex].rawProperties, ...response.properties }
             
             // Обновляем вычисляемые свойства (активность, яркость, цвет и т.д.)
-            if (response.properties.tb_power) {
-              this.devices[deviceIndex].active = response.properties.tb_power === 'on'
+            // Для активности учитываем оба свойства
+            if (response.properties.attr_server_active !== undefined || response.properties.tb_power !== undefined) {
+              const hasServerActive = response.properties.attr_server_active !== undefined;
+              const serverActive = hasServerActive ? response.properties.attr_server_active === 'true' : this.devices[deviceIndex].active;
+              
+              const hasPower = response.properties.tb_power !== undefined;
+              const powerOn = hasPower ? response.properties.tb_power === 'on' : this.devices[deviceIndex].active;
+              
+              // Для ТВ и других устройств требуется обе проверки
+              if (this.devices[deviceIndex].category === 'APPLIANCES' && this.devices[deviceIndex].subType === 'TV') {
+                this.devices[deviceIndex].active = serverActive && powerOn;
+              } else {
+                // Для прочих устройств достаточно любого из двух свойств
+                this.devices[deviceIndex].active = hasServerActive ? serverActive : powerOn;
+              }
             }
             
             if (response.properties.tb_brightness) {

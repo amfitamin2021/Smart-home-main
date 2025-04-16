@@ -68,16 +68,116 @@
           <!-- Содержимое в зависимости от типа устройства -->
           <div class="mt-3">
             <!-- TV -->
-            <template v-if="device.type === 'tv'">
-              <div class="mt-4 flex items-center justify-between">
-                <div>Статус</div>
-                <label class="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" class="sr-only peer" v-model="device.active">
-                  <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                </label>
-              </div>
-              <div class="mt-2 text-sm text-gray-500">
-                {{ device.status }}
+            <template v-if="device.type === 'tv' || (device.category === 'APPLIANCES' && device.subType === 'TV')">
+              <div class="flex flex-col">
+                <!-- Статус включения -->
+                <div class="flex items-center justify-between mb-3">
+                  <div class="text-gray-700">Состояние</div>
+                  <div class="flex items-center">
+                    <label class="toggle-switch">
+                      <input
+                        type="checkbox"
+                        :checked="device.active"
+                        @change="toggleTV(device)"
+                      />
+                      <span class="toggle-slider"></span>
+                    </label>
+                  </div>
+                </div>
+                
+                <!-- Телевизор, отображение -->
+                <div class="bg-white rounded-lg border border-gray-200 p-3 relative">
+                  <!-- Визуализация ТВ -->
+                  <div class="bg-gray-800 rounded-lg p-2 text-center mb-4" 
+                       :class="{ 'opacity-30': !device.active || !device.online }">
+                    <div class="py-8 flex items-center justify-center">
+                      <i class="fas fa-tv text-5xl text-gray-400"></i>
+                    </div>
+                    <div class="mt-2 text-xs text-gray-400">
+                      {{ getTVStatus(device) }}
+                    </div>
+                  </div>
+                  
+                  <!-- Элементы управления -->
+                  <div :class="{ 'opacity-50 pointer-events-none': !device.active }">
+                    <!-- Каналы -->
+                    <div class="mb-4">
+                      <div class="flex items-center justify-between mb-2">
+                        <div class="text-gray-600 text-sm">Канал</div>
+                        <div class="text-gray-800 font-medium">{{ device.rawProperties?.tb_channel || '1' }}</div>
+                      </div>
+                      <div class="flex gap-2">
+                        <button 
+                          class="bg-blue-50 text-blue-600 hover:bg-blue-100 p-2 rounded-lg flex-1"
+                          @click="changeChannel(device, -1)"
+                          :disabled="!device.active"
+                        >
+                          <i class="fas fa-chevron-left"></i>
+                        </button>
+                        <button 
+                          class="bg-blue-50 text-blue-600 hover:bg-blue-100 p-2 rounded-lg flex-1"
+                          @click="changeChannel(device, 1)"
+                          :disabled="!device.active"
+                        >
+                          <i class="fas fa-chevron-right"></i>
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <!-- Быстрый выбор канала -->
+                    <div class="mb-4">
+                      <div class="text-gray-600 text-sm mb-2">Каналы</div>
+                      <div class="flex flex-wrap gap-2">
+                        <button 
+                          v-for="channel in 10" 
+                          :key="channel"
+                          class="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
+                          :class="{ 'bg-blue-100 text-blue-600': device.rawProperties?.tb_channel === channel.toString() }"
+                          @click="setChannel(device, channel)"
+                          :disabled="!device.active"
+                        >
+                          {{ channel }}
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <!-- Громкость -->
+                    <div class="mb-4">
+                      <div class="flex items-center justify-between mb-2">
+                        <div class="text-gray-600 text-sm">Громкость</div>
+                        <div class="text-gray-800 font-medium">{{ device.rawProperties?.tb_volume || '50' }}</div>
+                      </div>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="100" 
+                        :value="device.rawProperties?.tb_volume || 50"
+                        @input="updateLocalVolume(device, $event)"
+                        @change="changeVolume(device, $event)"
+                        class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                        :disabled="!device.active"
+                      >
+                    </div>
+                    
+                    <!-- Источник сигнала -->
+                    <div class="mb-4">
+                      <div class="text-gray-600 text-sm mb-2">Источник сигнала</div>
+                      <div class="grid grid-cols-3 gap-2">
+                        <button 
+                          v-for="source in inputSources" 
+                          :key="source.value"
+                          class="py-1 px-2 rounded-md text-xs text-center"
+                          :class="(device.rawProperties?.tb_input_source === source.value) ? 
+                            'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                          @click="changeInputSource(device, source.value)"
+                          :disabled="!device.active"
+                        >
+                          {{ source.label }}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </template>
 
@@ -615,6 +715,7 @@ import HumidityGauge from '../components/devices/HumidityGauge.vue'
 import HumidityChart from '../components/devices/HumidityChart.vue'
 import HumidityInfo from '../components/devices/HumidityInfo.vue'
 import TemperatureChart from '../components/devices/TemperatureChart.vue'
+import api, { devicesApi } from '../services/api'
 
 // Функция debounce для задержки выполнения
 function debounce(fn, delay) {
@@ -1064,22 +1165,9 @@ export default {
         await deviceStore.fetchDevices()
         
         // Выводим сообщение об успешном добавлении
-        notifications.value.push({
-          id: Date.now(),
-          type: 'success',
-          title: 'Устройство добавлено',
-          message: `${device.name} успешно добавлено и связано с устройством ThingsBoard`
-        })
-        
         console.log('Добавлено устройство:', device)
       } catch (error) {
         console.error('Ошибка при обработке добавленного устройства:', error)
-        notifications.value.push({
-          id: Date.now(),
-          type: 'error',
-          title: 'Ошибка',
-          message: 'Не удалось обновить список устройств'
-        })
       }
     }
     
@@ -1127,6 +1215,256 @@ export default {
       return 'Высокая влажность. Рекомендуется использовать осушитель'
     }
     
+    // Константы для телевизора
+    const inputSources = [
+      { value: 'tv', label: 'ТВ' },
+      { value: 'hdmi1', label: 'HDMI 1' },
+      { value: 'hdmi2', label: 'HDMI 2' },
+      { value: 'av', label: 'AV' },
+      { value: 'usb', label: 'USB' },
+      { value: 'smarttv', label: 'Smart TV' }
+    ]
+    
+    // Методы для управления телевизором
+    const toggleTV = async (device) => {
+      try {
+        const newState = !device.active
+        const command = {
+          command: 'setState',
+          parameters: {
+            attr_server_active: newState ? 'true' : 'false',
+            tb_power: newState ? 'on' : 'off'
+          }
+        }
+        
+        const response = await api.devices.sendCommand(device.id, command)
+        
+        // Обновляем состояние на основе ответа сервера
+        if (response && response.properties) {
+          // Обновляем rawProperties
+          if (!device.rawProperties) device.rawProperties = {}
+          Object.assign(device.rawProperties, response.properties)
+          
+          // Обновляем флаг активности на основе обоих свойств
+          device.active = response.properties.attr_server_active === 'true' && 
+                          response.properties.tb_power === 'on'
+        } else {
+          // Если нет ответа с сервера, обновляем локально
+          device.active = newState
+        }
+        
+        // Принудительно обновляем состояние устройства через 500мс
+        setTimeout(() => refreshDeviceState(device), 500);
+      } catch (error) {
+        console.error('Ошибка при изменении состояния ТВ:', error)
+        
+        // При ошибке также стоит обновить состояние устройства
+        setTimeout(() => refreshDeviceState(device), 500);
+      }
+    }
+    
+    const changeChannel = async (device, delta) => {
+      try {
+        // Получаем текущий канал
+        let currentChannel = parseInt(device.rawProperties?.tb_channel || '1')
+        const newChannel = Math.max(1, currentChannel + delta)
+        
+        const command = {
+          command: 'setState',
+          parameters: {
+            tb_channel: newChannel.toString()
+          }
+        }
+        
+        // Также добавляем флаг активности, если устройство активно
+        if (device.active) {
+          command.parameters.attr_server_active = 'true';
+        }
+        
+        await api.devices.sendCommand(device.id, command)
+        
+        // Обновляем состояние локально
+        if (!device.rawProperties) device.rawProperties = {}
+        device.rawProperties.tb_channel = newChannel.toString()
+        
+        // Принудительно обновляем состояние устройства через 500мс
+        setTimeout(() => refreshDeviceState(device), 500);
+        
+        console.log(`Переключено на канал ${newChannel}`);
+      } catch (error) {
+        console.error('Ошибка при переключении канала:', error)
+        // Удаляем раздражающее уведомление
+        
+        // При ошибке также обновляем состояние
+        setTimeout(() => refreshDeviceState(device), 500);
+      }
+    }
+    
+    // Функция для принудительного обновления состояния устройства с сервера
+    const refreshDeviceState = async (device) => {
+      try {
+        // Получаем обновленную информацию об устройстве с сервера
+        const updatedDevice = await api.devices.getDevice(device.id)
+        
+        // Обновляем локальное состояние устройства
+        if (updatedDevice) {
+          // Обновляем свойства
+          if (!device.rawProperties) device.rawProperties = {}
+          Object.assign(device.rawProperties, updatedDevice.properties)
+          
+          // Обновляем флаг активности
+          if (device.category === 'APPLIANCES' && device.subType === 'TV') {
+            device.active = updatedDevice.properties.attr_server_active === 'true' && 
+                           updatedDevice.properties.tb_power === 'on'
+          } else {
+            device.active = updatedDevice.properties.attr_server_active === 'true' || 
+                           updatedDevice.properties.tb_power === 'on'
+          }
+          
+          // Обновляем другие свойства
+          if (updatedDevice.properties.tb_brightness) {
+            device.brightness = parseInt(updatedDevice.properties.tb_brightness)
+          }
+          
+          if (updatedDevice.properties.tb_color) {
+            device.color = `#${updatedDevice.properties.tb_color}`
+          }
+          
+          console.log('Устройство обновлено с сервера:', device)
+          return true
+        }
+        return false
+      } catch (error) {
+        console.error('Ошибка при обновлении состояния устройства:', error)
+        return false
+      }
+    }
+    
+    const setChannel = async (device, channel) => {
+      try {
+        const command = {
+          command: 'setState',
+          parameters: {
+            tb_channel: channel.toString()
+          }
+        }
+        
+        // Также добавляем флаг активности, если устройство активно
+        if (device.active) {
+          command.parameters.attr_server_active = 'true';
+        }
+        
+        await api.devices.sendCommand(device.id, command)
+        
+        // Обновляем состояние локально
+        if (!device.rawProperties) device.rawProperties = {}
+        device.rawProperties.tb_channel = channel.toString()
+        
+        // Принудительно обновляем состояние устройства через 500мс
+        setTimeout(() => refreshDeviceState(device), 500);
+        
+        console.log(`Выбран канал ${channel}`);
+      } catch (error) {
+        console.error('Ошибка при выборе канала:', error)
+        // Удаляем раздражающее уведомление
+        
+        // При ошибке также обновляем состояние
+        setTimeout(() => refreshDeviceState(device), 500);
+      }
+    }
+    
+    const changeVolume = async (device, event) => {
+      try {
+        const newVolume = event.target.value
+        
+        // Обновляем состояние локально сразу
+        if (!device.rawProperties) device.rawProperties = {}
+        device.rawProperties.tb_volume = newVolume.toString()
+        
+        // Отправляем команду на сервер (только при отпускании ползунка)
+        const command = {
+          command: 'setState',
+          parameters: {
+            tb_volume: newVolume.toString()
+          }
+        }
+        
+        // Также добавляем флаг активности, если устройство активно
+        if (device.active) {
+          command.parameters.attr_server_active = 'true';
+        }
+        
+        await api.devices.sendCommand(device.id, command)
+        
+        // Принудительно обновляем состояние устройства через 500мс
+        setTimeout(() => refreshDeviceState(device), 500);
+        
+        console.log(`Громкость изменена: ${newVolume}`);
+      } catch (error) {
+        console.error('Ошибка при изменении громкости:', error)
+        
+        // При ошибке также обновляем состояние
+        setTimeout(() => refreshDeviceState(device), 500);
+      }
+    }
+    
+    const changeInputSource = async (device, source) => {
+      try {
+        const command = {
+          command: 'setState',
+          parameters: {
+            tb_input_source: source
+          }
+        }
+        
+        // Также добавляем флаг активности, если устройство активно
+        if (device.active) {
+          command.parameters.attr_server_active = 'true';
+        }
+        
+        await api.devices.sendCommand(device.id, command)
+        
+        // Обновляем состояние локально
+        if (!device.rawProperties) device.rawProperties = {}
+        device.rawProperties.tb_input_source = source
+        
+        // Принудительно обновляем состояние устройства через 500мс
+        setTimeout(() => refreshDeviceState(device), 500);
+        
+        // Находим метку для отображения без уведомления
+        const sourceLabel = inputSources.find(item => item.value === source)?.label || source
+        console.log(`Выбран источник: ${sourceLabel}`);
+      } catch (error) {
+        console.error('Ошибка при изменении источника:', error)
+        // Удаляем раздражающее уведомление
+        
+        // При ошибке также обновляем состояние
+        setTimeout(() => refreshDeviceState(device), 500);
+      }
+    }
+    
+    // Метод для обновления только локального значения громкости без отправки запроса
+    const updateLocalVolume = (device, event) => {
+      const newVolume = event.target.value
+      if (!device.rawProperties) device.rawProperties = {}
+      device.rawProperties.tb_volume = newVolume.toString()
+    }
+    
+    const getFavoriteChannels = (device) => {
+      if (!device.rawProperties?.tb_favorite_channels) return [1, 2, 3, 4]
+      return device.rawProperties.tb_favorite_channels.split(',').map(ch => ch.trim())
+    }
+    
+    const getTVStatus = (device) => {
+      if (!device.active) return 'Выключен'
+      
+      const channel = device.rawProperties?.tb_channel || '1'
+      const source = device.rawProperties?.tb_input_source || 'tv'
+      const sourceLabel = inputSources.find(item => item.value === source)?.label || source
+      
+      return `${sourceLabel}, канал ${channel}`
+    }
+
     return {
       searchQuery,
       selectedRoom,
@@ -1168,7 +1506,17 @@ export default {
       getTemperatureTitle,
       getTemperatureDetailedMessage,
       setPeriod,
-      getPeriod
+      getPeriod,
+      inputSources,
+      changeChannel,
+      setChannel,
+      changeVolume,
+      changeInputSource,
+      getFavoriteChannels,
+      toggleTV,
+      getTVStatus,
+      refreshDeviceState,
+      updateLocalVolume
     }
   }
 }

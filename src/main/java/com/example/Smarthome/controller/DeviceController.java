@@ -4,6 +4,7 @@ import com.example.Smarthome.dto.AvailableDeviceDto;
 import com.example.Smarthome.dto.DeviceCommandRequest;
 import com.example.Smarthome.dto.DeviceDto;
 import com.example.Smarthome.dto.DeviceRegistrationRequest;
+import com.example.Smarthome.dto.LockHistoryDto;
 import com.example.Smarthome.model.ConnectionProtocol;
 import com.example.Smarthome.model.Device;
 import com.example.Smarthome.model.DeviceStatus;
@@ -13,6 +14,7 @@ import com.example.Smarthome.service.DeviceService;
 import com.example.Smarthome.service.LocationService;
 import com.example.Smarthome.service.ProtocolAdapterService;
 import com.example.Smarthome.service.ThingsBoardIntegrationService;
+import com.example.Smarthome.service.LockHistoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -37,6 +39,7 @@ public class DeviceController {
     private final ProtocolAdapterService protocolAdapterService;
     private final ThingsBoardIntegrationService thingsBoardService;
     private final LocationService locationService;
+    private final LockHistoryService lockHistoryService;
 
     /**
      * Получение списка всех устройств
@@ -752,10 +755,16 @@ public class DeviceController {
                     device.getProperties().put("tb_power", "off");
                     device.getProperties().put("tb_volume", "50");
                     device.getProperties().put("tb_channel", "1");
+                    device.getProperties().put("tb_input_source", "tv");
+                    device.getProperties().put("tb_favorite_channels", "1,2,4,8");
+                    device.getProperties().put("tb_last_updated", LocalDateTime.now().toString());
+                    device.getProperties().put("tb_screen_mode", "normal");
                     
                     device.getCapabilities().put("toggle", "true");
                     device.getCapabilities().put("volume", "true");
                     device.getCapabilities().put("channel", "true");
+                    device.getCapabilities().put("input_source", "true");
+                    device.getCapabilities().put("screen_mode", "true");
                 } else if ("VACUUM".equals(subType)) {
                     device.getProperties().put("attr_server_active", "true");
                     device.getProperties().put("tb_power", "off");
@@ -772,6 +781,105 @@ public class DeviceController {
                 // Для всех остальных типов устройств устанавливаем базовые свойства
                 device.getProperties().put("attr_server_active", "true");
                 device.getProperties().put("tb_power", "off");
+        }
+    }
+
+    /**
+     * Получение истории действий с замком
+     */
+    @GetMapping("/{id}/lock-history")
+    public ResponseEntity<List<LockHistoryDto>> getLockHistory(
+            @PathVariable UUID id) {
+        log.info("Запрос истории замка с ID: {}", id);
+        
+        try {
+            // Проверяем, существует ли устройство
+            Device device = deviceService.getDeviceById(id)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, 
+                            "Устройство с ID " + id + " не найдено"));
+            
+            // Проверяем, является ли устройство замком (опционально)
+            if (!(device.getType().equalsIgnoreCase("lock") || 
+                    ("SECURITY".equals(device.getCategory()) && "SMART_LOCK".equals(device.getSubType())))) {
+                log.warn("Запрос истории для устройства, которое не является замком: {}", device.getName());
+            }
+            
+            // Получаем историю замка
+            List<LockHistoryDto> history = lockHistoryService.getLockHistoryByDeviceId(id);
+            log.info("Получена история замка: {} записей", history.size());
+            
+            return ResponseEntity.ok(history);
+        } catch (ResponseStatusException e) {
+            log.error("Ошибка при получении истории замка: {}", e.getReason());
+            throw e;
+        } catch (Exception e) {
+            log.error("Внутренняя ошибка при получении истории замка: {}", e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
+                    "Внутренняя ошибка при получении истории замка: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Получение истории действий со всеми замками
+     */
+    @GetMapping("/lock-history")
+    public ResponseEntity<List<LockHistoryDto>> getAllLockHistory() {
+        log.info("Запрос истории всех замков");
+        
+        try {
+            // Получаем историю всех замков
+            List<LockHistoryDto> history = lockHistoryService.getAllLockHistory();
+            log.info("Получена история всех замков: {} записей", history.size());
+            
+            return ResponseEntity.ok(history);
+        } catch (Exception e) {
+            log.error("Внутренняя ошибка при получении истории всех замков: {}", e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
+                    "Внутренняя ошибка при получении истории всех замков: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Добавление записи в историю замка
+     */
+    @PostMapping("/{id}/lock-history")
+    public ResponseEntity<LockHistoryDto> addLockHistoryEntry(
+            @PathVariable UUID id,
+            @RequestBody LockHistoryDto historyDto) {
+        log.info("Добавление записи в историю замка с ID: {}, данные: {}", id, historyDto);
+        
+        try {
+            // Проверяем, существует ли устройство
+            Device device = deviceService.getDeviceById(id)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, 
+                            "Устройство с ID " + id + " не найдено"));
+            
+            // Проверяем, является ли устройство замком
+            if (!(device.getType().equalsIgnoreCase("lock") || 
+                    ("SECURITY".equals(device.getCategory()) && "SMART_LOCK".equals(device.getSubType())))) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, 
+                        "Устройство с ID " + id + " не является замком");
+            }
+            
+            // Если имя устройства не указано, устанавливаем его из базы данных
+            if (historyDto.getDeviceName() == null || historyDto.getDeviceName().isEmpty()) {
+                historyDto.setDeviceName(device.getName());
+            }
+            
+            // Добавляем запись в историю
+            LockHistoryDto createdEntry = lockHistoryService.addLockHistoryEntry(id, historyDto);
+            log.info("Успешно добавлена запись в историю замка: {}", createdEntry);
+            
+            return ResponseEntity.status(HttpStatus.CREATED).body(createdEntry);
+        } catch (ResponseStatusException e) {
+            // Пробрасываем ошибки статуса напрямую
+            log.error("Ошибка при добавлении истории замка: {}", e.getReason());
+            throw e;
+        } catch (Exception e) {
+            // Логируем и преобразуем другие ошибки в HTTP 500
+            log.error("Внутренняя ошибка при добавлении истории замка: {}", e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
+                    "Внутренняя ошибка при добавлении истории замка: " + e.getMessage());
         }
     }
 } 
