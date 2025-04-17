@@ -82,18 +82,13 @@ public class VirtualDeviceAdapter implements ProtocolAdapter {
     public boolean checkDeviceStatus(Device device) {
         String deviceId = device.getId().toString();
         
-        // Эмулируем онлайн-статус с некоторой долей случайности
+        // Эмулируем онлайн-статус для виртуальных устройств (всегда возвращаем true)
         if (!lastUpdateTime.containsKey(deviceId)) {
             // Если устройство ещё не имело обновлений, инициализируем его
             initializeVirtualDevice(device);
-            return true;
         }
         
-        // Симулируем некоторую вероятность отключения
-        if (random.nextDouble() < 0.01) { // 1% вероятность быть оффлайн
-            return false;
-        }
-        
+        // Виртуальные устройства всегда онлайн
         return true;
     }
     

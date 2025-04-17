@@ -748,8 +748,15 @@ export default {
     const selectedRoom = ref('all')
     const isAddDeviceModalOpen = ref(false)
     
-    // Получаем данные из стора с помощью storeToRefs
-    const { devices, loading, error } = storeToRefs(deviceStore)
+    // Создаем ref переменные для загрузки и ошибок
+    const loading = ref(false)
+    const error = ref(null)
+    
+    // Синхронизируем локальные переменные с состоянием из хранилища
+    const updateStoreState = () => {
+      loading.value = deviceStore.loading
+      error.value = deviceStore.error
+    }
     
     // Состояние отображения деталей для каждого устройства
     const deviceDetailsState = reactive({})
@@ -806,11 +813,15 @@ export default {
     const refreshDevices = async () => {
       try {
         isUpdating.value = true
+        loading.value = true // Устанавливаем флаг загрузки
         await deviceStore.fetchDevices()
-      } catch (error) {
-        console.error('Ошибка при обновлении данных:', error)
+        updateStoreState() // Обновляем состояние после запроса
+      } catch (err) {
+        console.error('Ошибка при обновлении данных:', err)
+        error.value = 'Не удалось загрузить устройства. Пожалуйста, попробуйте позже.' // Устанавливаем сообщение об ошибке
       } finally {
         isUpdating.value = false
+        loading.value = false // Сбрасываем флаг загрузки
       }
     }
     
@@ -1516,7 +1527,9 @@ export default {
       toggleTV,
       getTVStatus,
       refreshDeviceState,
-      updateLocalVolume
+      updateLocalVolume,
+      loading,
+      error
     }
   }
 }

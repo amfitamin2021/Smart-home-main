@@ -99,7 +99,7 @@ public class DeviceService {
     }
     
     // Планировщик для проверки состояния устройств
-    @Scheduled(fixedRate = 60000) // каждую минуту
+    // @Scheduled(fixedRate = 60000) // каждую минуту - временно отключено
     public void checkDevicesStatus() {
         log.debug("Выполняется проверка состояния устройств");
         List<Device> onlineDevices = deviceRepository.findByStatus(DeviceStatus.ONLINE);
@@ -107,7 +107,7 @@ public class DeviceService {
         for (Device device : onlineDevices) {
             // Проверяем, не превышен ли таймаут
             if (device.getLastSeen() != null &&
-                    device.getLastSeen().plusMinutes(5).isBefore(LocalDateTime.now())) {
+                    device.getLastSeen().plusMinutes(30).isBefore(LocalDateTime.now())) {
                 log.info("Устройство {} не в сети (таймаут)", device.getName());
                 device.setStatus(DeviceStatus.OFFLINE);
                 deviceRepository.save(device);
