@@ -5,6 +5,7 @@ export const useDashboardStore = defineStore('dashboard', {
   state: () => ({
     widgets: [],
     nextWidgetId: 1,
+    layout: {},
     availableWidgetTypes: [
       { 
         id: 'appliances', 
@@ -70,6 +71,11 @@ export const useDashboardStore = defineStore('dashboard', {
     getDevicesForCategory: () => (category) => {
       const deviceStore = useDeviceStore();
       return deviceStore.devices.filter(device => device.category === category);
+    },
+    
+    // Получить макет виджета
+    getWidgetLayout: (state) => (widgetId) => {
+      return state.layout[widgetId] || null;
     }
   },
   
@@ -206,6 +212,37 @@ export const useDashboardStore = defineStore('dashboard', {
       return false;
     },
     
+    // Сохранить макет дашборда
+    saveLayout(layoutData) {
+      this.layout = { ...layoutData };
+      try {
+        localStorage.setItem('dashboard_layout', JSON.stringify(this.layout));
+        console.log('Макет дашборда сохранен:', this.layout);
+      } catch (error) {
+        console.error('Ошибка при сохранении макета:', error);
+      }
+    },
+    
+    // Загрузить макет дашборда
+    loadLayout() {
+      try {
+        const savedLayout = localStorage.getItem('dashboard_layout');
+        if (savedLayout) {
+          this.layout = JSON.parse(savedLayout);
+          console.log('Макет дашборда загружен:', this.layout);
+        }
+      } catch (error) {
+        console.error('Ошибка при загрузке макета:', error);
+        this.layout = {};
+      }
+    },
+    
+    // Обновить настройки макета для виджета
+    updateWidgetLayout(widgetId, layout) {
+      this.layout[widgetId] = { ...layout };
+      this.saveLayout(this.layout);
+    },
+    
     // Сохранить виджеты в localStorage
     saveWidgets() {
       try {
@@ -222,6 +259,9 @@ export const useDashboardStore = defineStore('dashboard', {
         if (savedWidgets) {
           this.widgets = JSON.parse(savedWidgets);
         }
+        
+        // Также загружаем макет
+        this.loadLayout();
       } catch (error) {
         console.error('Ошибка при загрузке виджетов:', error);
         this.resetWidgets();
@@ -231,7 +271,9 @@ export const useDashboardStore = defineStore('dashboard', {
     // Сбросить все виджеты к настройкам по умолчанию
     resetWidgets() {
       this.widgets = [];
+      this.layout = {};
       this.saveWidgets();
+      localStorage.removeItem('dashboard_layout');
     },
     
     /**
@@ -239,7 +281,9 @@ export const useDashboardStore = defineStore('dashboard', {
      */
     clearWidgets() {
       this.widgets = [];
+      this.layout = {};
       localStorage.removeItem('dashboard_widgets');
+      localStorage.removeItem('dashboard_layout');
       localStorage.removeItem('dashboard_nextWidgetId');
       this.nextWidgetId = 1;
     }

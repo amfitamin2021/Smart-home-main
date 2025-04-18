@@ -1,6 +1,6 @@
 <template>
   <div 
-    class="device-card bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden transition-all duration-200"
+    class="device-card h-full bg-white rounded-lg shadow-sm border border-gray-200 transition-all duration-200 flex flex-col"
     :class="{ 
       'border-blue-500 shadow-md': isActive,
       'opacity-80': !device?.online
@@ -27,7 +27,7 @@
       </div>
     </div>
     
-    <div class="p-3" @click="toggleActive">
+    <div class="p-3 flex-1 flex flex-col justify-center" @click="toggleActive">
       <!-- Ошибка загрузки -->
       <div v-if="error" class="p-4 text-center">
         <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-red-100 text-red-500 mb-2">
@@ -46,7 +46,7 @@
       </div>
       
       <!-- Контент виджета в зависимости от типа устройства -->
-      <div v-else-if="device" class="space-y-3">
+      <div v-else-if="device" class="space-y-3 flex-1 flex flex-col justify-center">
         <!-- Освещение - Умная лампочка -->
         <template v-if="device.type === 'smart_bulb' || (device.category === 'LIGHTING' && device.subType === 'SMART_BULB')">
           <div class="flex flex-col items-center justify-center">
@@ -318,9 +318,9 @@ const getDeviceIcon = computed(() => {
   const category = device.value.category;
   const subType = device.value.subType;
   
-  if (category === 'temperature_sensor' || subType === 'TEMPERATURE_SENSOR') {
+  if (category === 'CLIMATE' && subType === 'TEMPERATURE_SENSOR') {
         return 'fa-thermometer-half';
-  } else if (category === 'humidity_sensor' || subType === 'HUMIDITY_SENSOR') {
+  } else if (category === 'CLIMATE' && subType === 'HUMIDITY_SENSOR') {
     return 'fa-tint';
   } else if (category === 'LIGHTING') {
     return 'fa-lightbulb';
@@ -344,7 +344,8 @@ const getTemperatureDashOffset = computed(() => {
 });
 
 const getTemperatureColor = computed(() => {
-  const temp = parseFloat(device.value.rawProperties?.tb_temperature || 0);
+  if (!device.value || !device.value.rawProperties?.tb_temperature) return '#22c55e'; // normal - green (default)
+  const temp = parseFloat(device.value.rawProperties.tb_temperature);
   if (temp < 16) return '#3b82f6'; // cold - blue
   if (temp < 20) return '#60a5fa'; // cool - light blue
   if (temp < 24) return '#22c55e'; // normal - green
@@ -418,7 +419,8 @@ const getSourceLabel = computed(() => {
 
 // Индикатор батареи
 const getBatteryLevel = computed(() => {
-  const battery = parseFloat(device.value.rawProperties?.tb_battery || 0);
+  if (!device.value?.rawProperties?.tb_battery) return 100;
+  const battery = parseFloat(device.value.rawProperties.tb_battery);
   return Math.min(Math.max(battery, 0), 100);
 });
 
@@ -430,7 +432,7 @@ const getBatteryColorClass = computed(() => {
 });
 
 const getLastUpdated = computed(() => {
-  const timestamp = device.value.rawProperties?.tb_lastUpdated;
+  const timestamp = device.value?.rawProperties?.tb_lastUpdated;
   if (!timestamp) return 'Нет данных';
   return new Date(timestamp).toLocaleString('ru-RU');
 });
@@ -522,23 +524,6 @@ async function toggleDevice() {
   }
 }
 
-async function handleBrightnessChange(event) {
-  if (!device.value || !device.value.online || !device.value.active) return;
-  
-  try {
-    const newBrightness = parseInt(event.target.value);
-    await deviceStore.setBrightness(device.value.id, newBrightness);
-    
-    // Обновляем локальные данные
-    const updatedDevice = deviceStore.getDeviceById(props.deviceId);
-    if (updatedDevice) {
-      device.value = updatedDevice;
-    }
-  } catch (error) {
-    console.error('Ошибка при изменении яркости:', error);
-  }
-}
-
 async function refreshDevice() {
   if (refreshing.value) return;
   
@@ -609,26 +594,34 @@ onMounted(async () => {
 onUnmounted(() => {
   if (updateInterval) {
     clearInterval(updateInterval);
+    updateInterval = null;
   }
 });
 
 // Следим за изменениями deviceId
 watch(() => props.deviceId, async (newId) => {
-  if (newId !== device.value?.id) {
+  if (newId && (!device.value || newId !== device.value.id)) {
     await loadDevice();
   }
 });
-
-function refreshDeviceData() {
-  if (device.value.subType === 'TEMPERATURE_SENSOR') {
-    deviceStore.dispatch('updateTemperatureSensorData', device.value);
-  } else if (device.value.subType === 'HUMIDITY_SENSOR') {
-    deviceStore.dispatch('updateHumiditySensorData', device.value);
-  }
-}
 </script>
 
 <style scoped>
+.device-card {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Убрали overflow: auto и добавили flexbox для центрирования и вписывания контента */
+.device-card > div:nth-child(2) {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
 .device-widget {
   @apply bg-white rounded-lg shadow-md p-4 relative;
   min-height: 200px;
