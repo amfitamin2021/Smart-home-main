@@ -83,45 +83,52 @@
           <!-- Инструкции для режима редактирования -->
           <div v-else-if="isEditMode" class="mb-4 p-3 bg-blue-50 text-blue-700 rounded-lg">
             <i class="fas fa-info-circle mr-2"></i>
-            <span>Используйте кнопки со стрелками, чтобы изменить порядок виджетов. Нажмите "Сохранить" для применения изменений.</span>
+            <span>Используйте мышь, чтобы перемещать виджеты и менять их размер. Нажмите "Сохранить" для применения изменений.</span>
           </div>
           
-          <!-- Сетка виджетов (общая для обоих режимов) -->
-          <div 
-            v-if="widgets.length > 0" 
-            class="widgets-grid"
-          >
-            <div 
-              v-for="widget in sortedWidgets" 
-              :key="widget.id" 
-              class="widget-wrapper"
-              :class="{ 'edit-mode': isEditMode }"
+          <!-- Сетка виджетов с использованием vue-grid-layout -->
+          <div v-if="widgets.length > 0">
+            <grid-layout
+              v-model:layout="layout"
+              :col-num="12"
+              :row-height="50"
+              :is-draggable="isEditMode"
+              :is-resizable="isEditMode"
+              :vertical-compact="true"
+              :use-css-transforms="true"
+              :margin="[10, 10]"
+              @layout-updated="onLayoutUpdated"
             >
-              <div class="widget-container">
-                <div class="widget-header">
-                  <div class="flex items-center">
-                    <h3 class="widget-title">{{ getDeviceName(widget.deviceId) }}</h3>
+              <grid-item
+                v-for="widget in widgets"
+                :key="widget.id"
+                :x="getWidgetLayout(widget.id).x"
+                :y="getWidgetLayout(widget.id).y"
+                :w="getWidgetLayout(widget.id).w"
+                :h="getWidgetLayout(widget.id).h"
+                :i="widget.id"
+                :class="{ 'edit-mode': isEditMode }"
+              >
+                <div class="widget-container h-full">
+                  <div class="widget-header">
+                    <div class="flex items-center">
+                      <h3 class="widget-title">{{ getDeviceName(widget.deviceId) }}</h3>
+                    </div>
+                    <div class="flex gap-2">
+                      <button @click="removeWidget(widget.id)" class="delete-btn">
+                        <i class="fas fa-times"></i>
+                      </button>
+                    </div>
                   </div>
-                  <div class="flex gap-2">
-                    <button v-if="isEditMode" @click.stop="moveWidgetUp(widget.id)" class="move-btn" title="Переместить вверх">
-                      <i class="fas fa-arrow-up"></i>
-                    </button>
-                    <button v-if="isEditMode" @click.stop="moveWidgetDown(widget.id)" class="move-btn" title="Переместить вниз">
-                      <i class="fas fa-arrow-down"></i>
-                    </button>
-                    <button @click="removeWidget(widget.id)" class="delete-btn">
-                      <i class="fas fa-times"></i>
-                    </button>
+                  <div class="widget-content">
+                    <device-widget
+                      :device-id="widget.deviceId"
+                      :widget-id="widget.id"
+                    />
                   </div>
                 </div>
-                <div class="widget-content">
-                  <device-widget
-                    :device-id="widget.deviceId"
-                    :widget-id="widget.id"
-                  />
-                </div>
-              </div>
-            </div>
+              </grid-item>
+            </grid-layout>
           </div>
         </div>
       </div>
@@ -142,6 +149,7 @@ import { useDashboardStore } from '../store/dashboardStore';
 import { useDeviceStore } from '../store/deviceStore';
 import DeviceWidget from '../components/dashboard/DeviceWidget.vue';
 import WidgetSelector from '../components/dashboard/WidgetSelector.vue';
+import { GridLayout, GridItem } from 'vue3-grid-layout';
 
 const dashboardStore = useDashboardStore();
 const deviceStore = useDeviceStore();
@@ -153,90 +161,96 @@ const loadError = ref(null);
 const isRefreshing = ref(false);
 const isEditMode = ref(false);
 
-// Порядок виджетов
-const widgetOrder = ref({});
-
 // Получение данных из хранилища
 const widgets = computed(() => dashboardStore.widgets);
 
-// Сортировка виджетов по их порядку
-const sortedWidgets = computed(() => {
-  const widgetsArray = [...widgets.value];
-  return widgetsArray.sort((a, b) => {
-    const orderA = widgetOrder.value[a.id] || 999;
-    const orderB = widgetOrder.value[b.id] || 999;
-    return orderA - orderB;
-  });
-});
+// Настройки Layout для виджетов
+const layout = ref([]);
+const defaultWidgetWidth = 4;
+const defaultWidgetHeight = 6;
+
+// Функция для получения макета виджета по ID
+function getWidgetLayout(widgetId) {
+  const widgetLayout = layout.value.find(item => item.i === widgetId);
+  if (widgetLayout) {
+    return widgetLayout;
+  }
+  
+  // Если не найден, создаем новый с дефолтными значениями
+  const newLayout = {
+    i: widgetId,
+    x: 0,
+    y: 0,
+    w: defaultWidgetWidth,
+    h: defaultWidgetHeight
+  };
+  
+  // Ищем свободное место для виджета
+  const maxY = layout.value.length > 0 
+    ? Math.max(...layout.value.map(item => item.y + item.h))
+    : 0;
+  
+  newLayout.y = maxY;
+  
+  return newLayout;
+}
+
+// Обработчик обновления макета
+function onLayoutUpdated(newLayout) {
+  layout.value = newLayout;
+  saveWidgetLayout();
+}
 
 // Функция переключения режима редактирования
 function toggleEditMode() {
-  // Перед переключением в обычный режим сохраняем изменения
   if (isEditMode.value) {
-    saveWidgetOrder();
+    saveWidgetLayout();
   }
   
   isEditMode.value = !isEditMode.value;
 }
 
-// Функции для изменения порядка виджетов
-function moveWidgetUp(widgetId) {
-  const currentIndex = getWidgetIndex(widgetId);
-  if (currentIndex > 0) {
-    // Находим предыдущий виджет
-    const prevWidgetId = sortedWidgets.value[currentIndex - 1].id;
-    
-    // Меняем местами порядковые номера
-    const currentOrder = widgetOrder.value[widgetId] || currentIndex;
-    const prevOrder = widgetOrder.value[prevWidgetId] || (currentIndex - 1);
-    
-    widgetOrder.value[widgetId] = prevOrder;
-    widgetOrder.value[prevWidgetId] = currentOrder;
-  }
+// Ключ для хранения макета виджетов
+const WIDGET_LAYOUT_KEY = 'dashboard_widget_layout';
+
+// Сохранение макета виджетов
+function saveWidgetLayout() {
+  localStorage.setItem(WIDGET_LAYOUT_KEY, JSON.stringify(layout.value));
+  // Обновляем также в сторе, если требуется
+  dashboardStore.updateWidgetLayouts(layout.value);
 }
 
-function moveWidgetDown(widgetId) {
-  const currentIndex = getWidgetIndex(widgetId);
-  if (currentIndex < sortedWidgets.value.length - 1) {
-    // Находим следующий виджет
-    const nextWidgetId = sortedWidgets.value[currentIndex + 1].id;
-    
-    // Меняем местами порядковые номера
-    const currentOrder = widgetOrder.value[widgetId] || currentIndex;
-    const nextOrder = widgetOrder.value[nextWidgetId] || (currentIndex + 1);
-    
-    widgetOrder.value[widgetId] = nextOrder;
-    widgetOrder.value[nextWidgetId] = currentOrder;
-  }
-}
-
-function getWidgetIndex(widgetId) {
-  return sortedWidgets.value.findIndex(widget => widget.id === widgetId);
-}
-
-// Ключ для хранения порядка виджетов
-const WIDGET_ORDER_KEY = 'dashboard_widget_order';
-
-// Сохранение порядка виджетов
-function saveWidgetOrder() {
-  localStorage.setItem(WIDGET_ORDER_KEY, JSON.stringify(widgetOrder.value));
-}
-
-// Загрузка порядка виджетов
-function loadWidgetOrder() {
+// Загрузка макета виджетов
+function loadWidgetLayout() {
   try {
-    const savedOrder = localStorage.getItem(WIDGET_ORDER_KEY);
-    if (savedOrder) {
-      widgetOrder.value = JSON.parse(savedOrder);
+    const savedLayout = localStorage.getItem(WIDGET_LAYOUT_KEY);
+    if (savedLayout) {
+      layout.value = JSON.parse(savedLayout);
     } else {
-      // Если порядок не сохранен, инициализируем его текущими индексами
-      widgets.value.forEach((widget, index) => {
-        widgetOrder.value[widget.id] = index;
-      });
+      // Инициализация макета для существующих виджетов
+      initializeLayout();
     }
   } catch (error) {
-    console.error('Ошибка при загрузке порядка виджетов:', error);
+    console.error('Ошибка при загрузке макета виджетов:', error);
+    initializeLayout();
   }
+}
+
+// Инициализация макета для существующих виджетов
+function initializeLayout() {
+  layout.value = widgets.value.map((widget, index) => {
+    // Располагаем виджеты по сетке, по 3 в строке
+    const col = index % 3;
+    const row = Math.floor(index / 3);
+    
+    return {
+      i: widget.id,
+      x: col * defaultWidgetWidth,
+      y: row * defaultWidgetHeight,
+      w: defaultWidgetWidth,
+      h: defaultWidgetHeight
+    };
+  });
 }
 
 // Интервал для автоматического обновления данных
@@ -275,8 +289,8 @@ async function loadDashboardData() {
       await deviceStore.fetchDevices();
     }
     
-    // Загрузка порядка виджетов
-    loadWidgetOrder();
+    // Загрузка макета виджетов
+    loadWidgetLayout();
     
     loadError.value = null;
   } catch (error) {
@@ -298,34 +312,36 @@ function getDeviceName(deviceId) {
   return device ? device.name : 'Устройство';
 }
 
-// Функции для получения размеров виджетов
-function getWidgetWidth(widgetId) {
-  return 300; // Фиксированная ширина
-}
-
-function getWidgetHeight(widgetId) {
-  return 360; // Фиксированная высота
-}
-
 // Методы для управления виджетами
 function removeWidget(widgetId) {
   dashboardStore.removeWidget(widgetId);
   
-  // Удаляем также информацию о порядке
-  if (widgetOrder.value[widgetId]) {
-    delete widgetOrder.value[widgetId];
-    saveWidgetOrder();
-  }
+  // Также удаляем элемент из layout
+  layout.value = layout.value.filter(item => item.i !== widgetId);
+  saveWidgetLayout();
 }
 
 function onWidgetAdded() {
   showWidgetSelector.value = false;
   
-  // Получаем последний добавленный виджет и задаем ему порядок в конце списка
+  // Получаем последний добавленный виджет
   if (widgets.value.length > 0) {
     const lastWidget = widgets.value[widgets.value.length - 1];
-    widgetOrder.value[lastWidget.id] = Object.keys(widgetOrder.value).length;
-    saveWidgetOrder();
+    
+    // Добавляем его в layout
+    const maxY = layout.value.length > 0 
+      ? Math.max(...layout.value.map(item => item.y + item.h))
+      : 0;
+      
+    layout.value.push({
+      i: lastWidget.id,
+      x: 0,
+      y: maxY,
+      w: defaultWidgetWidth,
+      h: defaultWidgetHeight
+    });
+    
+    saveWidgetLayout();
   }
   
   // Обновляем данные устройств после добавления виджета
@@ -361,24 +377,6 @@ onUnmounted(() => {
   max-width: 1600px;
 }
 
-/* Сетка для виджетов */
-.widgets-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  grid-gap: 16px;
-  margin-top: 16px;
-}
-
-.widget-wrapper {
-  position: relative;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.widget-wrapper.edit-mode {
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  border: 2px dashed #4299e1;
-}
-
 .widget-container {
   background-color: white;
   border-radius: 0.5rem;
@@ -404,7 +402,6 @@ onUnmounted(() => {
   color: #4b5563;
 }
 
-.move-btn,
 .delete-btn {
   background: none;
   border: none;
@@ -412,17 +409,6 @@ onUnmounted(() => {
   padding: 0.25rem 0.5rem;
   border-radius: 0.25rem;
   cursor: pointer;
-}
-
-.move-btn {
-  color: #4b5563;
-}
-
-.move-btn:hover {
-  background-color: #e2e8f0;
-}
-
-.delete-btn {
   color: #dc3545;
 }
 
@@ -436,21 +422,37 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
+.vue-grid-item {
+  transition: all 200ms ease;
+  transition-property: left, top, right;
+}
+
+.vue-grid-item.edit-mode {
+  border: 2px dashed #4299e1;
+}
+
+.vue-grid-item .resizing {
+  opacity: 0.9;
+}
+
+.vue-grid-item .vue-resizable-handle {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  bottom: 0;
+  right: 0;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><path d="M0 10V0h1v9h9v1z" fill="rgba(0,0,0,.5)"/><path d="M3 10V3h1v6h6v1z" fill="rgba(0,0,0,.5)"/><path d="M6 10V6h1v3h3v1z" fill="rgba(0,0,0,.5)"/></svg>');
+  background-position: bottom right;
+  padding: 0 3px 3px 0;
+  background-repeat: no-repeat;
+  background-origin: content-box;
+  box-sizing: border-box;
+  cursor: se-resize;
+}
+
 @media (min-width: 768px) {
-  .widgets-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (min-width: 1024px) {
-  .widgets-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-@media (min-width: 1600px) {
-  .widgets-grid {
-    grid-template-columns: repeat(4, 1fr);
+  .container {
+    padding: 0 1rem;
   }
 }
 </style> 

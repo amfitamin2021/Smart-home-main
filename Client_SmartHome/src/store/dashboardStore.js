@@ -6,6 +6,7 @@ export const useDashboardStore = defineStore('dashboard', {
     widgets: [],
     nextWidgetId: 1,
     layout: {},
+    widgetLayouts: [], // Новый массив для хранения layout в формате vue-grid-layout
     availableWidgetTypes: [
       { 
         id: 'appliances', 
@@ -76,7 +77,10 @@ export const useDashboardStore = defineStore('dashboard', {
     // Получить макет виджета
     getWidgetLayout: (state) => (widgetId) => {
       return state.layout[widgetId] || null;
-    }
+    },
+    
+    // Получить все макеты виджетов для vue-grid-layout
+    getWidgetLayouts: (state) => state.widgetLayouts
   },
   
   actions: {
@@ -196,6 +200,11 @@ export const useDashboardStore = defineStore('dashboard', {
       if (index !== -1) {
         this.widgets.splice(index, 1);
         this.saveWidgets();
+        
+        // Удаляем также виджет из макета
+        this.widgetLayouts = this.widgetLayouts.filter(item => item.i !== widgetId);
+        this.saveWidgetLayouts();
+        
         return true;
       }
       return false;
@@ -243,6 +252,36 @@ export const useDashboardStore = defineStore('dashboard', {
       this.saveLayout(this.layout);
     },
     
+    // Обновить весь макет виджетов для vue-grid-layout
+    updateWidgetLayouts(layouts) {
+      this.widgetLayouts = [...layouts];
+      this.saveWidgetLayouts();
+    },
+    
+    // Сохранить макеты виджетов в localStorage
+    saveWidgetLayouts() {
+      try {
+        localStorage.setItem('dashboard_widget_layouts', JSON.stringify(this.widgetLayouts));
+        console.log('Макеты виджетов сохранены:', this.widgetLayouts);
+      } catch (error) {
+        console.error('Ошибка при сохранении макетов виджетов:', error);
+      }
+    },
+    
+    // Загрузить макеты виджетов из localStorage
+    loadWidgetLayouts() {
+      try {
+        const savedLayouts = localStorage.getItem('dashboard_widget_layouts');
+        if (savedLayouts) {
+          this.widgetLayouts = JSON.parse(savedLayouts);
+          console.log('Макеты виджетов загружены:', this.widgetLayouts);
+        }
+      } catch (error) {
+        console.error('Ошибка при загрузке макетов виджетов:', error);
+        this.widgetLayouts = [];
+      }
+    },
+    
     // Сохранить виджеты в localStorage
     saveWidgets() {
       try {
@@ -254,38 +293,41 @@ export const useDashboardStore = defineStore('dashboard', {
     
     // Загрузить виджеты из localStorage
     loadWidgets() {
-      try {
-        const savedWidgets = localStorage.getItem('dashboard_widgets');
-        if (savedWidgets) {
-          this.widgets = JSON.parse(savedWidgets);
+      return new Promise((resolve) => {
+        try {
+          const savedWidgets = localStorage.getItem('dashboard_widgets');
+          if (savedWidgets) {
+            this.widgets = JSON.parse(savedWidgets);
+            console.log('Загружено виджетов:', this.widgets.length);
+          }
+          
+          // Также загружаем макеты виджетов
+          this.loadWidgetLayouts();
+          
+          resolve(this.widgets);
+        } catch (error) {
+          console.error('Ошибка при загрузке виджетов:', error);
+          this.widgets = [];
+          resolve([]);
         }
-        
-        // Также загружаем макет
-        this.loadLayout();
-      } catch (error) {
-        console.error('Ошибка при загрузке виджетов:', error);
-        this.resetWidgets();
-      }
+      });
     },
     
-    // Сбросить все виджеты к настройкам по умолчанию
+    // Сбросить виджеты к состоянию по умолчанию
     resetWidgets() {
+      // Тут можно добавить логику для сброса виджетов к определенному состоянию
       this.widgets = [];
-      this.layout = {};
+      this.widgetLayouts = [];
       this.saveWidgets();
-      localStorage.removeItem('dashboard_layout');
+      this.saveWidgetLayouts();
     },
     
-    /**
-     * Полностью очищает все данные о виджетах
-     */
+    // Полностью очистить виджеты
     clearWidgets() {
       this.widgets = [];
-      this.layout = {};
-      localStorage.removeItem('dashboard_widgets');
-      localStorage.removeItem('dashboard_layout');
-      localStorage.removeItem('dashboard_nextWidgetId');
-      this.nextWidgetId = 1;
+      this.widgetLayouts = [];
+      this.saveWidgets();
+      this.saveWidgetLayouts();
     }
   }
 }) 
