@@ -47,130 +47,161 @@
       
       <!-- Контент виджета в зависимости от типа устройства -->
       <div v-else-if="device" class="space-y-3">
-        <!-- Освещение -->
-        <template v-if="device.category === 'LIGHTING'">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center">
-              <div class="w-10 h-10 flex items-center justify-center">
-                <i class="fas fa-lightbulb text-xl" :class="device.active ? 'text-yellow-400' : 'text-gray-300'"></i>
-              </div>
-              <div>
-                <div class="text-sm">Состояние</div>
-                <div class="text-xs font-medium">{{ device.active ? 'Включено' : 'Выключено' }}</div>
+        <!-- Освещение - Умная лампочка -->
+        <template v-if="device.type === 'smart_bulb' || (device.category === 'LIGHTING' && device.subType === 'SMART_BULB')">
+          <div class="flex flex-col items-center justify-center">
+            <div class="relative w-32 h-32 mb-4 flex items-center justify-center">
+              <!-- Фоновый круг -->
+              <div class="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center">
+                <!-- Светящаяся лампочка с цветом -->
+                <div class="w-20 h-20 rounded-full flex items-center justify-center"
+                  :style="{ 
+                    backgroundColor: device.active ? (device.rawProperties?.tb_color || '#FFD700') : 'transparent',
+                    boxShadow: device.active ? `0 0 15px 5px ${device.rawProperties?.tb_color || '#FFD700'}` : 'none',
+                    opacity: device.active ? (device.rawProperties?.tb_brightness || 100) / 100 : 0.2
+                  }">
+                  <i class="fas fa-lightbulb text-4xl" 
+                    :class="device.active ? 'text-yellow-400' : 'text-gray-400'"></i>
+                </div>
+            </div>
+          </div>
+          
+            <div class="flex items-center justify-between w-full mt-2">
+              <div class="text-sm font-medium">Состояние</div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  class="sr-only peer" 
+                  :checked="device.active" 
+                  @change="toggleDevice"
+                  :disabled="!device.online"
+                >
+                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+          </div>
+          
+            <div v-if="device.active" class="w-full mt-3">
+              <div class="flex justify-between text-sm">
+                <span>Яркость:</span>
+                <span>{{ device.rawProperties?.tb_brightness || 100 }}%</span>
               </div>
             </div>
+          </div>
+        </template>
+        
+        <!-- Световая лента -->
+        <template v-else-if="device.type === 'light_strip' || device.subType === 'LIGHT_STRIP'">
+          <div class="flex flex-col items-center justify-center">
+            <div class="relative w-32 h-32 mb-4 flex items-center justify-center">
+              <!-- Фоновый прямоугольник для ленты -->
+              <div class="w-28 h-8 rounded-md bg-gray-100 flex items-center justify-center overflow-hidden">
+                <!-- Светящаяся лента с цветом -->
+                <div class="w-full h-full flex items-center justify-center"
+                  :style="{ 
+                    backgroundColor: device.active ? (device.rawProperties?.tb_color || '#FFD700') : 'transparent',
+                    boxShadow: device.active ? `0 0 10px 2px ${device.rawProperties?.tb_color || '#FFD700'}` : 'none',
+                    opacity: device.active ? (device.rawProperties?.tb_brightness || 100) / 100 : 0.2
+                  }">
+                  <i class="fas fa-stream text-xl" 
+                    :class="device.active ? 'text-white' : 'text-gray-400'"></i>
+          </div>
+          </div>
+          </div>
             
-            <label class="relative inline-flex items-center cursor-pointer">
-              <input 
-                type="checkbox" 
-                class="sr-only peer" 
-                :checked="device.active" 
-                @change="toggleDevice"
-                :disabled="!device.online"
-              >
-              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-            </label>
-          </div>
-        </template>
-        
-        <!-- Климат: датчик температуры -->
-        <template v-else-if="device.category === 'CLIMATE' && (device.subType === 'TEMPERATURE_SENSOR' || device.rawProperties?.tb_temperature)">
-          <div class="flex items-start">
-            <div class="relative w-16 h-16 flex-shrink-0">
-              <svg class="w-full h-full" viewBox="0 0 120 120">
-                <circle
-                  class="text-gray-100"
-                  stroke-width="12"
-                  stroke="currentColor"
-                  fill="transparent"
-                  r="54"
-                  cx="60"
-                  cy="60"
-                />
-                <circle
-                  :class="getTemperatureColorClass"
-                  stroke-width="12"
-                  :stroke-dasharray="2 * Math.PI * 54"
-                  :stroke-dashoffset="getTemperatureDashOffset"
-                  stroke-linecap="round"
-                  stroke="currentColor"
-                  fill="transparent"
-                  r="54"
-                  cx="60"
-                  cy="60"
-                  transform="rotate(-90, 60, 60)"
-                />
-                <circle cx="60" cy="60" r="40" fill="white" />
-                <text x="60" y="50" dominant-baseline="middle" text-anchor="middle" style="font-size: 16px">🌡️</text>
-                <text x="60" y="72" dominant-baseline="middle" text-anchor="middle" :class="getTemperatureColorClass" style="font-size: 13px; font-weight: bold">
-                  {{ device.rawProperties?.tb_temperature || '--' }}°C
-                </text>
-              </svg>
-            </div>
-            <div class="ml-3 flex-1">
-              <div class="text-sm font-medium">{{ getTemperatureLevelText }}</div>
-              <div class="text-xs text-gray-500 mt-1">Обновлено: {{ formatDate(device.rawProperties?.tb_last_updated) }}</div>
-              
-              <div v-if="device.rawProperties?.tb_battery" class="flex items-center mt-2">
-                <span 
-                  class="text-xs font-medium py-1 px-2 rounded-full flex items-center"
-                  :class="getBatteryClass"
+            <div class="flex items-center justify-between w-full mt-2">
+              <div class="text-sm font-medium">Состояние</div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  class="sr-only peer" 
+                  :checked="device.active" 
+                  @change="toggleDevice"
+                  :disabled="!device.online"
                 >
-                  <i class="fas fa-battery-three-quarters text-xs mr-1"></i>
-                  {{ device.rawProperties.tb_battery }}%
-                </span>
+                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+          </div>
+          
+            <div v-if="device.active" class="w-full mt-3">
+              <div class="flex justify-between text-sm">
+                <span>Яркость:</span>
+                <span>{{ device.rawProperties?.tb_brightness || 100 }}%</span>
               </div>
             </div>
           </div>
         </template>
         
-        <!-- Климат: датчик влажности -->
-        <template v-else-if="device.category === 'CLIMATE' && (device.subType === 'HUMIDITY_SENSOR' || device.rawProperties?.tb_humidity !== undefined)">
-          <div class="flex items-start">
-            <div class="relative w-16 h-16 flex-shrink-0">
-              <svg class="w-full h-full" viewBox="0 0 120 120">
-                <circle
-                  class="text-gray-100"
-                  stroke-width="12"
-                  stroke="currentColor"
-                  fill="transparent"
-                  r="54"
-                  cx="60"
-                  cy="60"
+        <!-- Датчик температуры -->
+        <template v-else-if="device.type === 'temperature_sensor' || (device.category === 'CLIMATE' && device.subType === 'TEMPERATURE_SENSOR')">
+          <div class="flex flex-col items-center">
+            <div class="circular-indicator">
+              <svg viewBox="0 0 100 100">
+                <circle class="background-circle" cx="50" cy="50" r="45" fill="none" stroke-width="10" />
+                <circle class="active-circle" cx="50" cy="50" r="45" fill="none" stroke-width="10"
+                  :style="{ 
+                    'stroke-dasharray': '283', 
+                    'stroke-dashoffset': getTemperatureDashOffset,
+                    'stroke': getTemperatureColor
+                  }" 
                 />
-                <circle
-                  :class="getHumidityColorClass"
-                  stroke-width="12"
-                  :stroke-dasharray="2 * Math.PI * 54"
-                  :stroke-dashoffset="getHumidityDashOffset"
-                  stroke-linecap="round"
-                  stroke="currentColor"
-                  fill="transparent"
-                  r="54"
-                  cx="60"
-                  cy="60"
-                  transform="rotate(-90, 60, 60)"
-                />
-                <circle cx="60" cy="60" r="40" fill="white" />
-                <text x="60" y="50" dominant-baseline="middle" text-anchor="middle" style="font-size: 16px">💧</text>
-                <text x="60" y="72" dominant-baseline="middle" text-anchor="middle" :class="getHumidityColorClass" style="font-size: 13px; font-weight: bold">
-                  {{ device.rawProperties?.tb_humidity || '--' }}%
-                </text>
               </svg>
+              <div class="value" :style="{ color: getTemperatureColor }">
+                {{ device.rawProperties?.tb_temperature || '0' }}°C
             </div>
-            <div class="ml-3 flex-1">
-              <div class="text-sm font-medium">{{ getHumidityLevelText }}</div>
-              <div class="text-xs text-gray-500 mt-1">Обновлено: {{ formatDate(device.rawProperties?.tb_last_updated) }}</div>
-              
-              <div v-if="device.rawProperties?.tb_battery" class="flex items-center mt-2">
-                <span 
-                  class="text-xs font-medium py-1 px-2 rounded-full flex items-center"
-                  :class="getBatteryClass"
-                >
-                  <i class="fas fa-battery-three-quarters text-xs mr-1"></i>
-                  {{ device.rawProperties.tb_battery }}%
-                </span>
-              </div>
+          </div>
+          
+            <p class="text-sm font-medium text-center mt-4" :style="{ color: getTemperatureColor }">
+              {{ getTemperatureLevelText }}
+            </p>
+            
+            <div class="text-xs text-gray-500 text-center mt-1">
+              Идеальная температура: 20-24°C
+          </div>
+          
+            <div class="battery-indicator mt-3" :class="getBatteryColorClass">
+              <i class="fas" :class="getBatteryIcon"></i>
+              <span>{{ getBatteryLevel }}%</span>
+            </div>
+          </div>
+        </template>
+        
+        <!-- Датчик влажности -->
+        <template v-else-if="device.type === 'humidity_sensor' || (device.category === 'CLIMATE' && device.subType === 'HUMIDITY_SENSOR')">
+          <div class="flex flex-col items-center">
+            <div class="circular-indicator">
+              <svg viewBox="0 0 100 100">
+                <defs>
+                  <linearGradient id="humidity-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" style="stop-color: #ef4444" />
+                    <stop offset="50%" style="stop-color: #22c55e" />
+                    <stop offset="100%" style="stop-color: #3b82f6" />
+                  </linearGradient>
+                </defs>
+                <circle class="background-circle" cx="50" cy="50" r="45" fill="none" stroke-width="10" />
+                <circle class="active-circle" cx="50" cy="50" r="45" fill="none" stroke-width="10"
+                  stroke="url(#humidity-gradient)"
+                  :style="{ 
+                    'stroke-dasharray': '283', 
+                    'stroke-dashoffset': getHumidityDashOffset
+                  }" 
+                />
+              </svg>
+              <div class="value">
+                {{ device.rawProperties?.tb_humidity || '0' }}%
+            </div>
+          </div>
+          
+            <p class="text-sm font-medium text-center mt-4" :class="getHumidityColorClass">
+              {{ getHumidityLevelText }}
+            </p>
+            
+            <div class="text-xs text-gray-500 text-center mt-1">
+              Оптимальная влажность: 40-60%
+          </div>
+          
+            <div class="battery-indicator mt-3" :class="getBatteryColorClass">
+              <i class="fas" :class="getBatteryIcon"></i>
+              <span>{{ getBatteryLevel }}%</span>
             </div>
           </div>
         </template>
@@ -182,13 +213,13 @@
               <div class="flex items-center">
                 <div class="w-10 h-10 flex items-center justify-center">
                   <i class="fas fa-tv text-xl" :class="device.active ? 'text-blue-500' : 'text-gray-300'"></i>
-                </div>
+            </div>
                 <div>
                   <div class="text-sm">Состояние</div>
                   <div class="text-xs font-medium">{{ device.active ? 'Включен' : 'Выключен' }}</div>
-                </div>
-              </div>
-              
+          </div>
+          </div>
+          
               <label class="relative inline-flex items-center cursor-pointer">
                 <input 
                   type="checkbox" 
@@ -199,17 +230,17 @@
                 >
                 <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
               </label>
-            </div>
+          </div>
             
             <div v-if="device.active" class="grid grid-cols-2 gap-2 mt-2">
               <div class="bg-gray-50 p-2 rounded">
                 <div class="text-xs text-gray-500">Канал</div>
                 <div class="text-sm font-medium">{{ device.rawProperties?.tb_channel || '1' }}</div>
-              </div>
+            </div>
               <div class="bg-gray-50 p-2 rounded">
                 <div class="text-xs text-gray-500">Источник</div>
                 <div class="text-sm font-medium">{{ getSourceLabel }}</div>
-              </div>
+          </div>
             </div>
           </div>
         </template>
@@ -219,8 +250,8 @@
           <div class="flex items-center justify-between">
             <div class="flex items-center">
               <div class="w-10 h-10 flex items-center justify-center">
-                <i class="fas fa-microchip text-xl" :class="device.active ? 'text-blue-500' : 'text-gray-300'"></i>
-              </div>
+                <i class="fas text-xl" :class="[getDeviceIcon, device.active ? 'text-blue-500' : 'text-gray-300']"></i>
+            </div>
               <div>
                 <div class="text-sm">Состояние</div>
                 <div class="text-xs font-medium">{{ device.active ? 'Включено' : 'Выключено' }}</div>
@@ -282,124 +313,91 @@ const refreshing = ref(false);
 
 // Иконки для разных типов устройств
 const getDeviceIcon = computed(() => {
-  if (!device.value) return 'fa-microchip';
+  if (!device.value) return 'fa-question';
   
-  const type = device.value.type?.toLowerCase() || '';
-  const category = device.value.category || '';
-  const subType = device.value.subType || '';
+  const category = device.value.category;
+  const subType = device.value.subType;
   
-  switch(type) {
-    case 'light': return 'fa-lightbulb';
-    case 'thermostat': return 'fa-thermometer-half';
-    case 'lock': return 'fa-lock';
-    case 'camera': return 'fa-video';
-    case 'tv': return 'fa-tv';
-    case 'vacuum': return 'fa-broom';
-    default:
-      // Если тип не распознан, пробуем определить по категории
-      switch(category) {
-        case 'LIGHTING': return 'fa-lightbulb';
-        case 'CLIMATE':
-          if (subType === 'HUMIDITY_SENSOR' || device.value.rawProperties?.tb_humidity) 
-            return 'fa-tint';
-          if (subType === 'TEMPERATURE_SENSOR' || device.value.rawProperties?.tb_temperature) 
-            return 'fa-thermometer-half';
-          return 'fa-thermometer-half';
-        case 'SECURITY': return 'fa-shield-alt';
-        case 'APPLIANCES':
-          if (subType === 'TV') return 'fa-tv';
-          return 'fa-plug';
-        default: return 'fa-microchip';
-      }
+  if (category === 'temperature_sensor' || subType === 'TEMPERATURE_SENSOR') {
+        return 'fa-thermometer-half';
+  } else if (category === 'humidity_sensor' || subType === 'HUMIDITY_SENSOR') {
+    return 'fa-tint';
+  } else if (category === 'LIGHTING') {
+    return 'fa-lightbulb';
+  } else if (subType === 'LIGHT_STRIP') {
+    return 'fa-stream';
+  } else if (category === 'APPLIANCES' && subType === 'TV') {
+        return 'fa-tv';
+  } else if (subType === 'DOOR_LOCK') {
+    return 'fa-lock';
   }
+  
+  return 'fa-microchip';
 });
 
 // Данные температуры
 const getTemperatureDashOffset = computed(() => {
-  if (!device.value?.rawProperties?.tb_temperature) return 2 * Math.PI * 54;
-  const temperature = parseFloat(device.value.rawProperties.tb_temperature);
-  const percentage = Math.min((temperature / 40) * 100, 100);
-  return 2 * Math.PI * 54 - (percentage / 100) * 2 * Math.PI * 54;
+  if (!device.value || (device.value.type !== 'temperature_sensor' && !(device.value.category === 'CLIMATE' && device.value.subType === 'TEMPERATURE_SENSOR'))) return 0;
+  const temp = parseFloat(device.value.rawProperties?.tb_temperature || 0);
+  const percentage = Math.min(Math.max((temp / 40) * 100, 0), 100);
+  return ((100 - percentage) / 100) * 283;
+});
+
+const getTemperatureColor = computed(() => {
+  const temp = parseFloat(device.value.rawProperties?.tb_temperature || 0);
+  if (temp < 16) return '#3b82f6'; // cold - blue
+  if (temp < 20) return '#60a5fa'; // cool - light blue
+  if (temp < 24) return '#22c55e'; // normal - green
+  if (temp < 28) return '#eab308'; // warm - yellow
+  return '#ef4444'; // hot - red
 });
 
 const getTemperatureColorClass = computed(() => {
-  if (!device.value?.rawProperties?.tb_temperature) return 'temp-normal';
-  const temperature = parseFloat(device.value.rawProperties.tb_temperature);
-  
-  if (temperature < 18) return 'temp-cold';
-  if (temperature <= 20) return 'temp-cool';
-  if (temperature <= 24) return 'temp-normal';
-  if (temperature <= 28) return 'temp-warm';
+  if (!device.value || (device.value.type !== 'temperature_sensor' && !(device.value.category === 'CLIMATE' && device.value.subType === 'TEMPERATURE_SENSOR'))) return 'temp-normal';
+  const temp = parseFloat(device.value.rawProperties?.tb_temperature || 0);
+  if (temp < 16) return 'temp-cold';
+  if (temp < 20) return 'temp-cool';
+  if (temp < 24) return 'temp-normal';
+  if (temp < 28) return 'temp-warm';
   return 'temp-hot';
 });
 
 const getTemperatureLevelText = computed(() => {
-  if (!device.value?.rawProperties?.tb_temperature) return 'Нет данных';
-  const temperature = parseFloat(device.value.rawProperties.tb_temperature);
-  
-  if (temperature < 18) return 'Холодно';
-  if (temperature <= 20) return 'Прохладно';
-  if (temperature <= 24) return 'Нормально';
-  if (temperature <= 28) return 'Тепло';
+  if (!device.value || (device.value.type !== 'temperature_sensor' && !(device.value.category === 'CLIMATE' && device.value.subType === 'TEMPERATURE_SENSOR'))) return 'Нет данных';
+  const temp = parseFloat(device.value.rawProperties?.tb_temperature || 0);
+  if (temp < 16) return 'Холодно';
+  if (temp < 20) return 'Прохладно';
+  if (temp < 24) return 'Нормально';
+  if (temp < 28) return 'Тепло';
   return 'Жарко';
 });
 
 // Данные влажности
 const getHumidityDashOffset = computed(() => {
-  if (!device.value?.rawProperties?.tb_humidity) return 2 * Math.PI * 54;
-  
-  // Явно преобразуем к числу и убеждаемся, что значение корректно
-  let humidity;
-  try {
-    humidity = parseFloat(device.value.rawProperties.tb_humidity);
-    if (isNaN(humidity)) return 2 * Math.PI * 54;
-  } catch (e) {
-    console.error('Ошибка при обработке значения влажности:', e);
-    return 2 * Math.PI * 54;
-  }
-  
-  const percentage = Math.min(humidity, 100);
-  return 2 * Math.PI * 54 - (percentage / 100) * 2 * Math.PI * 54;
+  if (!device.value || (device.value.type !== 'humidity_sensor' && !(device.value.category === 'CLIMATE' && device.value.subType === 'HUMIDITY_SENSOR'))) return 0;
+  const humidity = parseFloat(device.value.rawProperties?.tb_humidity || 0);
+  const percentage = Math.min(Math.max(humidity, 0), 100);
+  return ((100 - percentage) / 100) * 283;
 });
 
 const getHumidityColorClass = computed(() => {
-  if (!device.value?.rawProperties?.tb_humidity) return 'humidity-normal';
-  
-  // Явно преобразуем к числу и убеждаемся, что значение корректно
-  let humidity;
-  try {
-    humidity = parseFloat(device.value.rawProperties.tb_humidity);
-    if (isNaN(humidity)) return 'humidity-normal';
-  } catch (e) {
-    console.error('Ошибка при обработке значения влажности:', e);
-    return 'humidity-normal';
-  }
-  
+  if (!device.value || (device.value.type !== 'humidity_sensor' && !(device.value.category === 'CLIMATE' && device.value.subType === 'HUMIDITY_SENSOR'))) return 'humidity-normal';
+  const humidity = parseFloat(device.value.rawProperties?.tb_humidity || 0);
   if (humidity < 30) return 'humidity-dry';
   if (humidity < 40) return 'humidity-low';
-  if (humidity <= 60) return 'humidity-normal';
-  if (humidity <= 70) return 'humidity-high';
+  if (humidity < 60) return 'humidity-normal';
+  if (humidity < 70) return 'humidity-high';
   return 'humidity-very-high';
 });
 
 const getHumidityLevelText = computed(() => {
-  if (!device.value?.rawProperties?.tb_humidity) return 'Нет данных';
-  
-  // Явно преобразуем к числу и убеждаемся, что значение корректно
-  let humidity;
-  try {
-    humidity = parseFloat(device.value.rawProperties.tb_humidity);
-    if (isNaN(humidity)) return 'Нет данных';
-  } catch (e) {
-    console.error('Ошибка при обработке значения влажности:', e);
-    return 'Нет данных';
-  }
-  
+  if (!device.value || (device.value.type !== 'humidity_sensor' && !(device.value.category === 'CLIMATE' && device.value.subType === 'HUMIDITY_SENSOR'))) return 'Нет данных';
+  const humidity = parseFloat(device.value.rawProperties?.tb_humidity || 0);
   if (humidity < 30) return 'Очень сухо';
-  if (humidity < 40) return 'Сухо';
-  if (humidity <= 60) return 'Оптимально';
-  if (humidity <= 70) return 'Влажно';
-  return 'Очень влажно';
+  if (humidity < 40) return 'Низкая';
+  if (humidity < 60) return 'Нормально';
+  if (humidity < 70) return 'Повышенная';
+  return 'Высокая';
 });
 
 // Данные телевизора
@@ -419,13 +417,31 @@ const getSourceLabel = computed(() => {
 });
 
 // Индикатор батареи
-const getBatteryClass = computed(() => {
-  if (!device.value?.rawProperties?.tb_battery) return 'battery-unknown';
-  const battery = parseFloat(device.value.rawProperties.tb_battery);
-  
+const getBatteryLevel = computed(() => {
+  const battery = parseFloat(device.value.rawProperties?.tb_battery || 0);
+  return Math.min(Math.max(battery, 0), 100);
+});
+
+const getBatteryColorClass = computed(() => {
+  const battery = getBatteryLevel.value;
   if (battery < 20) return 'battery-low';
   if (battery < 50) return 'battery-medium';
   return 'battery-high';
+});
+
+const getLastUpdated = computed(() => {
+  const timestamp = device.value.rawProperties?.tb_lastUpdated;
+  if (!timestamp) return 'Нет данных';
+  return new Date(timestamp).toLocaleString('ru-RU');
+});
+
+const getBatteryIcon = computed(() => {
+  const level = getBatteryLevel.value;
+  if (level <= 20) return 'fa-battery-empty';
+  if (level <= 40) return 'fa-battery-quarter';
+  if (level <= 60) return 'fa-battery-half';
+  if (level <= 80) return 'fa-battery-three-quarters';
+  return 'fa-battery-full';
 });
 
 // Методы
@@ -437,12 +453,26 @@ function formatDate(dateString) {
     // Проверяем валидность даты
     if (isNaN(date.getTime())) return 'Недавно';
     
-    return date.toLocaleString('ru-RU', {
-      hour: '2-digit',
-      minute: '2-digit',
-      day: '2-digit',
-      month: '2-digit'
-    });
+    // Проверяем, была ли дата в течение последних 24 часов
+    const now = new Date();
+    const diff = now - date;
+    const oneDay = 24 * 60 * 60 * 1000; // 24 часа в миллисекундах
+    
+    if (diff < oneDay) {
+      // Если менее 24 часов, показываем время
+      return date.toLocaleTimeString('ru-RU', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } else {
+      // Иначе показываем дату и время
+      return date.toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
   } catch (e) {
     console.error('Ошибка при форматировании даты:', e);
     return 'Недавно';
@@ -497,8 +527,6 @@ async function handleBrightnessChange(event) {
   
   try {
     const newBrightness = parseInt(event.target.value);
-    
-    // Используем метод из deviceStore для изменения яркости
     await deviceStore.setBrightness(device.value.id, newBrightness);
     
     // Обновляем локальные данные
@@ -544,6 +572,28 @@ onMounted(async () => {
   // Загрузка устройства
   await loadDevice();
   
+  // При монтировании выполняем дополнительную проверку данных устройства
+  if (device.value) {
+    const rawProps = device.value.rawProperties || {};
+    
+    // Проверяем тип устройства и наличие необходимых данных
+    if (device.value.category === 'CLIMATE') {
+      if ((device.value.subType === 'HUMIDITY_SENSOR' || rawProps.tb_humidity !== undefined) && 
+          !rawProps.tb_humidity) {
+        console.log('Инициализация датчика влажности с пустыми данными');
+        // Принудительно обновляем датчик влажности, если данных нет
+        refreshDevice();
+      }
+      
+      if ((device.value.subType === 'TEMPERATURE_SENSOR' || rawProps.tb_temperature !== undefined) && 
+          !rawProps.tb_temperature) {
+        console.log('Инициализация датчика температуры с пустыми данными');
+        // Принудительно обновляем датчик температуры, если данных нет
+        refreshDevice();
+      }
+    }
+  }
+  
   // Устанавливаем интервал обновления данных каждые 30 секунд
   updateInterval = setInterval(async () => {
     if (device.value && device.value.online) {
@@ -568,69 +618,67 @@ watch(() => props.deviceId, async (newId) => {
     await loadDevice();
   }
 });
+
+function refreshDeviceData() {
+  if (device.value.subType === 'TEMPERATURE_SENSOR') {
+    deviceStore.dispatch('updateTemperatureSensorData', device.value);
+  } else if (device.value.subType === 'HUMIDITY_SENSOR') {
+    deviceStore.dispatch('updateHumiditySensorData', device.value);
+  }
+}
 </script>
 
 <style scoped>
-/* Сохраним стили для круговых индикаторов температуры и влажности */
-.temp-cold {
-  color: #3b82f6; /* blue-500 */
+.device-widget {
+  @apply bg-white rounded-lg shadow-md p-4 relative;
+  min-height: 200px;
 }
 
-.temp-cool {
-  color: #60a5fa; /* blue-400 */
+.circular-indicator {
+  @apply relative w-32 h-32 mx-auto;
 }
 
-.temp-normal {
-  color: #10b981; /* green-500 */
+.background-circle {
+  @apply stroke-current text-gray-200;
 }
 
-.temp-warm {
-  color: #f59e0b; /* amber-500 */
+.active-circle {
+  @apply transition-all duration-500 ease-in-out transform origin-center;
+  stroke-linecap: round;
 }
 
-.temp-hot {
-  color: #ef4444; /* red-500 */
+/* Температурные стили */
+.temp-cold { @apply text-blue-600; }
+.temp-cool { @apply text-blue-400; }
+.temp-normal { @apply text-green-500; }
+.temp-warm { @apply text-yellow-500; }
+.temp-hot { @apply text-red-500; }
+
+/* Стили влажности */
+.humidity-dry { @apply text-red-600; }
+.humidity-low { @apply text-yellow-500; }
+.humidity-normal { @apply text-green-500; }
+.humidity-high { @apply text-blue-400; }
+.humidity-very-high { @apply text-blue-600; }
+
+.value {
+  @apply absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2;
+  @apply text-2xl font-bold transition-all duration-500;
 }
 
-/* Цвета для влажности */
-.humidity-dry {
-  color: #ef4444; /* red-500 */
+.battery-indicator {
+  @apply flex items-center gap-2 mt-4 text-sm;
 }
 
-.humidity-low {
-  color: #f59e0b; /* amber-500 */
+.battery-low { @apply text-red-500; }
+.battery-medium { @apply text-yellow-500; }
+.battery-high { @apply text-green-500; }
+
+.last-updated {
+  @apply text-xs text-gray-500 mt-2;
 }
 
-.humidity-normal {
-  color: #10b981; /* green-500 */
-}
-
-.humidity-high {
-  color: #60a5fa; /* blue-400 */
-}
-
-.humidity-very-high {
-  color: #3b82f6; /* blue-500 */
-}
-
-/* Классы для батареи */
-.battery-low {
-  background-color: #fee2e2; /* red-100 */
-  color: #ef4444; /* red-500 */
-}
-
-.battery-medium {
-  background-color: #fef3c7; /* amber-100 */
-  color: #f59e0b; /* amber-500 */
-}
-
-.battery-high {
-  background-color: #d1fae5; /* green-100 */
-  color: #10b981; /* green-500 */
-}
-
-.battery-unknown {
-  background-color: #f3f4f6; /* gray-100 */
-  color: #6b7280; /* gray-500 */
+.refresh-button {
+  @apply ml-2 text-blue-500 hover:text-blue-600 cursor-pointer;
 }
 </style> 

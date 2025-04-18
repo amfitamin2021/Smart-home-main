@@ -184,6 +184,22 @@ public class DeviceController {
                         log.error("Ошибка при отправке начальной телеметрии для датчика влажности: {}", e.getMessage(), e);
                     }
                 }
+                // Если это датчик температуры, отправляем начальные значения телеметрии
+                else if ("CLIMATE".equals(savedDevice.getCategory()) && "TEMPERATURE_SENSOR".equals(savedDevice.getSubType())) {
+                    try {
+                        // Создаем данные телеметрии для инициализации
+                        Map<String, Object> telemetryData = new HashMap<>();
+                        telemetryData.put("temperature", 22); // Начальное значение температуры
+                        telemetryData.put("battery", 98);  // Начальное значение батареи
+                        
+                        // Отправляем телеметрию в ThingsBoard
+                        thingsBoardService.sendTelemetry(savedDevice, telemetryData);
+                        
+                        log.info("Отправлены начальные данные телеметрии для датчика температуры: {}", telemetryData);
+                    } catch (Exception e) {
+                        log.error("Ошибка при отправке начальной телеметрии для датчика температуры: {}", e.getMessage(), e);
+                    }
+                }
             }
             
             return ResponseEntity.status(HttpStatus.CREATED).body(convertToDto(savedDevice));
@@ -301,12 +317,16 @@ public class DeviceController {
                 telemetryData.put("battery", Integer.parseInt(parameters.get("battery")));
             }
             
+            if (parameters.containsKey("temperature")) {
+                telemetryData.put("temperature", Integer.parseInt(parameters.get("temperature")));
+            }
+            
             // Создаем final копию объекта device
             final Device finalDevice = device;
             
             // Сохраняем свойства устройства локально
             parameters.forEach((key, value) -> {
-                if (key.startsWith("tb_") || !key.contains("humidity") || !key.contains("battery")) {
+                if (key.startsWith("tb_") || (!key.equals("humidity") && !key.equals("battery") && !key.equals("temperature"))) {
                     finalDevice.getProperties().put(key, value);
                 }
             });
@@ -714,8 +734,11 @@ public class DeviceController {
                 } else if ("TEMPERATURE_SENSOR".equals(subType)) {
                     device.getProperties().put("attr_server_active", "true");
                     device.getProperties().put("tb_temperature", "22");
+                    device.getProperties().put("tb_battery", "98");
+                    device.getProperties().put("tb_last_updated", LocalDateTime.now().toString());
                     
                     device.getCapabilities().put("temperature", "true");
+                    device.getCapabilities().put("battery", "true");
                 } else if ("HUMIDITY_SENSOR".equals(subType)) {
                     device.getProperties().put("attr_server_active", "true");
                     device.getProperties().put("tb_humidity", "45");
