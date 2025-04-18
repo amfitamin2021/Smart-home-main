@@ -61,8 +61,30 @@
       <div v-else-if="step === 'device'" class="p-6">
         <p class="text-gray-600 mb-4">Выберите устройство, которое хотите добавить на дашборд</p>
         
+        <!-- Специальный тип виджета - безопасность -->
+        <div v-if="selectedCategory === 'security'" class="mb-6 bg-blue-50 p-4 rounded-lg">
+          <div class="flex items-center mb-4">
+            <div class="w-10 h-10 flex items-center justify-center bg-blue-100 rounded-full mr-3">
+              <i class="fas fa-shield-alt text-blue-600"></i>
+            </div>
+            <div>
+              <h5 class="font-medium text-gray-900">Виджет безопасности</h5>
+              <p class="text-sm text-gray-600">Общая информация о системе безопасности, камерах и замках</p>
+            </div>
+          </div>
+          
+          <button 
+            @click="addSecurityWidget" 
+            class="w-full px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+            :disabled="isAdding"
+          >
+            <i v-if="isAdding" class="fas fa-spinner fa-spin mr-2"></i>
+            <span>{{ isAdding ? 'Добавление...' : 'Добавить виджет безопасности' }}</span>
+          </button>
+        </div>
+        
         <!-- Загрузка -->
-        <div v-if="isLoading" class="py-8 text-center">
+        <div v-else-if="isLoading" class="py-8 text-center">
           <div class="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
           <p class="mt-3 text-gray-600">Загрузка устройств...</p>
         </div>
@@ -259,6 +281,24 @@ async function addDeviceWidget() {
     emit('widget-added');
   } catch (error) {
     console.error('Ошибка при добавлении виджета:', error);
+  } finally {
+    isAdding.value = false;
+  }
+}
+
+// Добавление виджета безопасности
+async function addSecurityWidget() {
+  if (isAdding.value) return;
+  
+  try {
+    isAdding.value = true;
+    
+    // Добавляем виджет безопасности через хранилище
+    await dashboardStore.addSecurityWidget();
+    
+    emit('widget-added');
+  } catch (error) {
+    console.error('Ошибка при добавлении виджета безопасности:', error);
   } finally {
     isAdding.value = false;
   }

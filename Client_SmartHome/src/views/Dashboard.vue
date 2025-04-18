@@ -121,7 +121,11 @@
                     </div>
                   </div>
                   <div class="widget-content">
+                    <!-- Если тип виджета security, используем напрямую SecurityWidget -->
+                    <security-widget v-if="widget.type === 'security'" />
+                    <!-- Для остальных виджетов используем DeviceWidget -->
                     <device-widget
+                      v-else
                       :device-id="widget.deviceId"
                       :widget-id="widget.id"
                     />
@@ -148,6 +152,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useDashboardStore } from '../store/dashboardStore';
 import { useDeviceStore } from '../store/deviceStore';
 import DeviceWidget from '../components/dashboard/DeviceWidget.vue';
+import SecurityWidget from '../components/dashboard/SecurityWidget.vue';
 import WidgetSelector from '../components/dashboard/WidgetSelector.vue';
 import { GridLayout, GridItem } from 'vue3-grid-layout';
 

@@ -311,6 +311,12 @@ const device = ref(null);
 const isActive = ref(false);
 const refreshing = ref(false);
 
+// Проверим deviceId
+if (!props.deviceId) {
+  error.value = 'ID устройства не указан';
+  loading.value = false;
+}
+
 // Иконки для разных типов устройств
 const getDeviceIcon = computed(() => {
   if (!device.value) return 'fa-question';
@@ -486,6 +492,11 @@ async function loadDevice() {
   error.value = null;
   
   try {
+    // Проверяем наличие deviceId
+    if (!props.deviceId) {
+      throw new Error('ID устройства не указан');
+    }
+    
     // Получаем устройство напрямую из хранилища
     const deviceData = deviceStore.getDeviceById(props.deviceId);
     
@@ -554,6 +565,13 @@ function removeWidget() {
 let updateInterval = null;
 
 onMounted(async () => {
+  // Проверка наличия deviceId
+  if (!props.deviceId) {
+    error.value = 'ID устройства не указан';
+    loading.value = false;
+    return;
+  }
+  
   // Загрузка устройства
   await loadDevice();
   
@@ -581,7 +599,7 @@ onMounted(async () => {
   
   // Устанавливаем интервал обновления данных каждые 30 секунд
   updateInterval = setInterval(async () => {
-    if (device.value && device.value.online) {
+    if (props.deviceId && device.value && device.value.online) {
       // При обновлении, получаем свежие данные из хранилища
       const updatedDevice = deviceStore.getDeviceById(props.deviceId);
       if (updatedDevice) {

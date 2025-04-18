@@ -53,6 +53,7 @@ import TVWidget from './TVWidget.vue';
 import HumidityWidget from './HumidityWidget.vue';
 import TemperatureWidget from './TemperatureWidget.vue';
 import LightWidget from './LightWidget.vue';
+import SecurityWidget from './SecurityWidget.vue';
 import GenericClimateWidget from './GenericClimateWidget.vue';
 import GenericApplianceWidget from './GenericApplianceWidget.vue';
 import GenericWidget from './GenericWidget.vue';
@@ -63,6 +64,7 @@ const components = {
   HumidityWidget: markRaw(HumidityWidget),
   TemperatureWidget: markRaw(TemperatureWidget),
   LightWidget: markRaw(LightWidget),
+  SecurityWidget: markRaw(SecurityWidget),
   GenericClimateWidget: markRaw(GenericClimateWidget),
   GenericApplianceWidget: markRaw(GenericApplianceWidget),
   GenericWidget: markRaw(GenericWidget)
@@ -103,6 +105,8 @@ const getDefaultTitle = computed(() => {
       return 'Датчики климата';
     case 'lighting':
       return 'Освещение';
+    case 'security':
+      return 'Безопасность';
     case 'notifications':
       return 'Уведомления';
     default:

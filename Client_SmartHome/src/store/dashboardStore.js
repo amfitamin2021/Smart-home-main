@@ -33,6 +33,15 @@ export const useDashboardStore = defineStore('dashboard', {
         category: 'LIGHTING'
       },
       {
+        id: 'security',
+        name: 'Безопасность',
+        component: 'SecurityWidget',
+        allowsMultiple: false,
+        description: 'Управление системой безопасности дома',
+        icon: 'fa-shield-alt',
+        recommended: true
+      },
+      {
         id: 'notifications',
         name: 'Уведомления',
         component: 'NotificationsWidget',
@@ -123,6 +132,9 @@ export const useDashboardStore = defineStore('dashboard', {
           case 'lighting':
             component = 'LightWidget';
             break;
+          case 'security':
+            component = 'SecurityWidget';
+            break;  
           case 'notifications':
             component = 'NotificationsWidget';
             break;
@@ -179,6 +191,9 @@ export const useDashboardStore = defineStore('dashboard', {
             break;
           case 'LIGHTING':
             widgetType = 'lighting';
+            break;
+          case 'SECURITY':
+            widgetType = 'security';
             break;
           default:
             widgetType = 'appliances'; // По умолчанию
@@ -328,6 +343,31 @@ export const useDashboardStore = defineStore('dashboard', {
       this.widgetLayouts = [];
       this.saveWidgets();
       this.saveWidgetLayouts();
+    },
+    
+    // Добавить виджет безопасности (без привязки к устройству)
+    addSecurityWidget() {
+      // Проверяем, есть ли уже виджет безопасности
+      const hasSecurityWidget = this.widgets.some(w => w.type === 'security');
+      if (hasSecurityWidget) {
+        console.warn('Виджет безопасности уже существует на дашборде');
+        return null;
+      }
+      
+      const newWidget = {
+        id: `widget_${Date.now()}`,
+        type: 'security',
+        component: 'SecurityWidget',
+        // Не добавляем deviceId для виджета безопасности
+        createdAt: new Date().toISOString()
+      };
+      
+      console.log('Создан новый виджет безопасности:', newWidget);
+      
+      this.widgets.push(newWidget);
+      this.saveWidgets();
+      
+      return newWidget;
     }
   }
 }) 
