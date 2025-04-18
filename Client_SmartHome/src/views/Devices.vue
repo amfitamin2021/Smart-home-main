@@ -945,17 +945,10 @@ export default {
     
     // Переключение замка
     const toggleLock = (device) => {
-      const currentState = device.rawProperties?.tb_locked === 'true'
-      const newState = !currentState
-      
-      // Обновляем локальное состояние
-      device.rawProperties.tb_locked = newState.toString()
-      
-      // Отправляем команду на сервер
-      deviceStore.sendCommand(device.id, 'setState', { tb_locked: newState.toString() })
+      // Вместо прямого изменения состояния и вызова sendCommand
+      // используем специальный метод toggleLock из deviceStore
+      deviceStore.toggleLock(device.id)
         .catch(error => {
-          // Возвращаем прежнее значение при ошибке
-          device.rawProperties.tb_locked = currentState.toString()
           console.error('Ошибка при переключении замка:', error)
         })
     }

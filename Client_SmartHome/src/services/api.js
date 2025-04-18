@@ -177,6 +177,36 @@ const devicesApi = {
     return api.get(`/devices/${deviceId}/temperature-history`, {
       params: { interval }
     }).then(response => response.data)
+  },
+
+  /**
+   * Получить историю замка
+   * @param {string} deviceId - ID замка
+   * @returns {Promise<Array>} - история замка
+   */
+  getLockHistory(deviceId) {
+    return api.get(`/devices/${deviceId}/lock-history`)
+      .then(response => response.data)
+  },
+
+  /**
+   * Получить общую историю всех замков
+   * @returns {Promise<Array>} - история всех замков
+   */
+  getAllLockHistory() {
+    return api.get(`/devices/lock-history`)
+      .then(response => response.data)
+  },
+
+  /**
+   * Добавить запись в историю замка
+   * @param {string} deviceId - ID замка
+   * @param {Object} historyEntry - запись истории
+   * @returns {Promise<Object>} - добавленная запись
+   */
+  addLockHistoryEntry(deviceId, historyEntry) {
+    return api.post(`/devices/${deviceId}/lock-history`, historyEntry)
+      .then(response => response.data)
   }
 }
 

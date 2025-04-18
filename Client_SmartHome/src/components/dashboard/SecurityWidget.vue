@@ -14,13 +14,9 @@
           </p>
         </div>
       </div>
-      <button @click="toggleSystem" 
-        class="toggle-btn px-3 py-1 rounded-lg text-sm"
-        :class="securityStatus.system === 'armed' 
-          ? 'bg-red-100 text-red-600 hover:bg-red-200' 
-          : 'bg-green-100 text-green-600 hover:bg-green-200'">
-        {{ securityStatus.system === 'armed' ? 'Отключить' : 'Включить' }}
-      </button>
+      <router-link to="/security" class="px-3 py-1 rounded-lg text-sm bg-blue-100 text-blue-600 hover:bg-blue-200">
+        Управление
+      </router-link>
     </div>
     
     <!-- Статистика и плитки -->
@@ -34,7 +30,7 @@
           <h4 class="font-medium ml-2 text-blue-700">Камеры</h4>
         </div>
         <div class="text-sm text-blue-800">
-          <p>{{ securityStatus.activeCameras }} из {{ securityStatus.totalCameras }} активны</p>
+          <p>{{ camerasStatus.activeCameras }} из {{ camerasStatus.totalCameras }} активны</p>
         </div>
       </router-link>
       
@@ -50,77 +46,46 @@
           <p>{{ locksStatus.lockedCount }} из {{ locksStatus.totalLocks }} заблокированы</p>
         </div>
       </router-link>
-      
-      <!-- Движение -->
-      <div class="security-stat-card p-3 rounded-lg border"
-        :class="securityStatus.motion === 'detected' 
-          ? 'bg-yellow-50 border-yellow-100' 
-          : 'bg-green-50 border-green-100'">
-        <div class="flex items-center mb-2">
-          <div class="w-8 h-8 rounded-full flex items-center justify-center"
-            :class="securityStatus.motion === 'detected' 
-              ? 'bg-yellow-100 text-yellow-500' 
-              : 'bg-green-100 text-green-500'">
-            <i class="fas fa-running"></i>
-          </div>
-          <h4 class="font-medium ml-2"
-            :class="securityStatus.motion === 'detected' 
-              ? 'text-yellow-700' 
-              : 'text-green-700'">
-            Движение
-          </h4>
-        </div>
-        <div class="text-sm"
-          :class="securityStatus.motion === 'detected' 
-            ? 'text-yellow-800' 
-            : 'text-green-800'">
-          <p>{{ securityStatus.motion === 'detected' ? 'Обнаружено' : 'Не обнаружено' }}</p>
-        </div>
-      </div>
-      
-      <!-- Двери и окна -->
-      <div class="security-stat-card p-3 rounded-lg border"
-        :class="securityStatus.doorsWindows === 'secured' 
-          ? 'bg-green-50 border-green-100' 
-          : 'bg-red-50 border-red-100'">
-        <div class="flex items-center mb-2">
-          <div class="w-8 h-8 rounded-full flex items-center justify-center"
-            :class="securityStatus.doorsWindows === 'secured' 
-              ? 'bg-green-100 text-green-500' 
-              : 'bg-red-100 text-red-500'">
-            <i class="fas fa-door-closed"></i>
-          </div>
-          <h4 class="font-medium ml-2"
-            :class="securityStatus.doorsWindows === 'secured' 
-              ? 'text-green-700' 
-              : 'text-red-700'">
-            Двери и окна
-          </h4>
-        </div>
-        <div class="text-sm"
-          :class="securityStatus.doorsWindows === 'secured' 
-            ? 'text-green-800' 
-            : 'text-red-800'">
-          <p>{{ securityStatus.doorsWindows === 'secured' ? 'Закрыты' : 'Открыты' }}</p>
-        </div>
-      </div>
     </div>
     
     <!-- Последние события -->
     <div class="security-events flex-grow overflow-auto px-4 pb-4">
-      <h3 class="text-sm font-medium mb-2 text-gray-700">Последние события</h3>
-      <div v-for="event in securityEvents.slice(0, 4)" :key="event.id" 
+      <div class="flex justify-between items-center mb-2">
+        <h3 class="text-sm font-medium text-gray-700">Последние события</h3>
+        <router-link to="/security/locks" class="text-xs text-blue-600 hover:text-blue-800">
+          Все события
+        </router-link>
+      </div>
+      
+      <!-- Индикатор загрузки -->
+      <div v-if="loadingHistory" class="flex justify-center my-4">
+        <div class="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+      
+      <!-- Сообщение об ошибке истории -->
+      <div v-else-if="historyError" class="bg-red-50 text-red-600 p-2 rounded-lg mb-3 text-xs">
+        <i class="fas fa-exclamation-circle mr-1"></i>{{ historyError }}
+      </div>
+      
+      <!-- Сообщение, если нет истории -->
+      <div v-else-if="lockHistory.length === 0" class="bg-gray-50 p-4 rounded-lg text-center">
+        <i class="fas fa-history text-gray-300 text-2xl mb-2"></i>
+        <p class="text-sm text-gray-500">История событий пуста</p>
+      </div>
+      
+      <!-- События из истории замков -->
+      <div v-else v-for="event in lockHistory.slice(0, 4)" :key="event.id" 
         class="security-event-item bg-white p-2 rounded-lg shadow-sm mb-2 border-l-2"
-        :class="getEventBorderClass(event.status)">
+        :class="getEventBorderClass(event.action)">
         <div class="flex justify-between text-xs mb-1">
           <span class="text-gray-500">{{ formatDate(event.timestamp) }}</span>
-          <span :class="getEventStatusClass(event.status)">{{ event.status }}</span>
+          <span :class="getEventStatusClass(event.action)">{{ getEventStatus(event.action) }}</span>
         </div>
-        <p class="text-sm">{{ event.device }}: {{ event.event }}</p>
+        <p class="text-sm">{{ event.deviceName }}: {{ event.action }}</p>
       </div>
       
       <router-link to="/security" class="view-all-link text-sm text-blue-600 hover:text-blue-800 flex items-center mt-2">
-        <span>Просмотреть все события</span>
+        <span>Просмотреть все</span>
         <i class="fas fa-chevron-right ml-1 text-xs"></i>
       </router-link>
     </div>
@@ -128,64 +93,67 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import { useDeviceStore } from '../../store/deviceStore';
+import api from '../../services/api';
 
 const router = useRouter();
+const deviceStore = useDeviceStore();
 
 // Состояние системы безопасности
 const securityStatus = ref({
   system: 'armed', // armed или disarmed
-  doorsWindows: 'secured', // secured или open
-  activeCameras: 4,
-  totalCameras: 5,
-  motion: 'none' // none или detected
 });
 
-// Состояние замков
-const locksStatus = ref({
-  lockedCount: 2,
-  totalLocks: 3
+// Получаем список камер из хранилища устройств
+const cameras = computed(() => {
+  return deviceStore.devices.filter(device => 
+    device.type === 'camera' || 
+    (device.category === 'SECURITY' && device.subType === 'CAMERA')
+  );
 });
 
-// События безопасности
-const securityEvents = ref([
-  {
-    id: 1,
-    timestamp: new Date(Date.now() - 300000),
-    device: 'Входная дверь',
-    event: 'Открыта',
-    status: 'Внимание'
-  },
-  {
-    id: 2,
-    timestamp: new Date(Date.now() - 600000),
-    device: 'Камера в гостиной',
-    event: 'Движение обнаружено',
-    status: 'Информация'
-  },
-  {
-    id: 3,
-    timestamp: new Date(Date.now() - 1800000),
-    device: 'Система безопасности',
-    event: 'Активирована',
-    status: 'Нормально'
-  },
-  {
-    id: 4,
-    timestamp: new Date(Date.now() - 3600000),
-    device: 'Датчик открытия окна',
-    event: 'Активация датчика',
-    status: 'Тревога'
-  },
-  {
-    id: 5,
-    timestamp: new Date(Date.now() - 7200000),
-    device: 'Замок черного входа',
-    event: 'Разблокирован',
-    status: 'Информация'
-  }
-]);
+// Статус камер
+const camerasStatus = computed(() => {
+  const totalCameras = cameras.value.length;
+  const activeCameras = cameras.value.filter(camera => 
+    camera.online && camera.active
+  ).length;
+  
+  return {
+    totalCameras,
+    activeCameras
+  };
+});
+
+// Получаем список замков из хранилища устройств
+const locks = computed(() => {
+  return deviceStore.devices.filter(device => 
+    device.type === 'lock' || 
+    (device.category === 'SECURITY' && device.subType === 'SMART_LOCK')
+  );
+});
+
+// Статус замков
+const locksStatus = computed(() => {
+  const totalLocks = locks.value.length;
+  const lockedCount = locks.value.filter(lock => 
+    lock.rawProperties?.tb_locked === 'true'
+  ).length;
+  
+    return {
+    totalLocks,
+    lockedCount
+  };
+});
+
+// Флаги загрузки и ошибок истории
+const loadingHistory = ref(true);
+const historyError = ref(null);
+
+// История замков
+const lockHistory = ref([]);
 
 // Форматирование даты
 function formatDate(date) {
@@ -197,36 +165,100 @@ function formatDate(date) {
   });
 }
 
-// Получение класса для статуса события
-function getEventStatusClass(status) {
-  switch (status) {
-    case 'Тревога':
-      return 'text-red-600';
-    case 'Внимание':
-      return 'text-yellow-600';
-    case 'Информация':
-      return 'text-blue-600';
-    case 'Нормально':
-      return 'text-green-600';
+// Получение статуса для действия
+function getEventStatus(action) {
+  switch (action) {
+    case 'Заблокировано':
+      return 'Нормально';
+    case 'Разблокировано':
+      return 'Внимание';
+    case 'Ошибка доступа':
+      return 'Тревога';
     default:
-      return 'text-gray-600';
+      return 'Информация';
+  }
+}
+
+// Получение класса для статуса события
+function getEventStatusClass(action) {
+  switch (action) {
+    case 'Заблокировано':
+      return 'text-green-600';
+    case 'Разблокировано':
+      return 'text-yellow-600';
+    case 'Ошибка доступа':
+      return 'text-red-600';
+    default:
+      return 'text-blue-600';
   }
 }
 
 // Получение класса для границы события
-function getEventBorderClass(status) {
-  switch (status) {
-    case 'Тревога':
-      return 'border-red-500';
-    case 'Внимание':
-      return 'border-yellow-500';
-    case 'Информация':
-      return 'border-blue-500';
-    case 'Нормально':
+function getEventBorderClass(action) {
+  switch (action) {
+    case 'Заблокировано':
       return 'border-green-500';
+    case 'Разблокировано':
+      return 'border-yellow-500';
+    case 'Ошибка доступа':
+      return 'border-red-500';
     default:
-      return 'border-gray-300';
+      return 'border-blue-500';
   }
+}
+
+// Получение истории замков
+async function fetchLockHistory() {
+  loadingHistory.value = true;
+  historyError.value = null;
+  
+  try {
+    // Получаем общую историю всех замков
+    const historyData = await api.devices.getAllLockHistory();
+    
+    // Обновляем данные истории
+    lockHistory.value = historyData || [];
+  } catch (err) {
+    console.error('Ошибка при загрузке истории замков:', err);
+    historyError.value = 'Не удалось загрузить историю';
+    
+    // В режиме разработки можем использовать статические данные
+    if (process.env.NODE_ENV === 'development') {
+      lockHistory.value = getDemoHistoryData();
+    }
+  } finally {
+    loadingHistory.value = false;
+  }
+}
+
+// Получение демо-данных для истории (используется только в режиме разработки)
+function getDemoHistoryData() {
+  return [
+    {
+      id: 1,
+      timestamp: new Date(Date.now() - 3600000),
+      deviceName: 'Замок входной двери',
+      action: 'Заблокировано',
+      user: 'Иван Петров',
+      method: 'Приложение'
+    },
+    {
+      id: 2,
+      timestamp: new Date(Date.now() - 7200000),
+      deviceName: 'Замок гаража',
+      action: 'Разблокировано',
+      user: 'Система',
+      method: 'Автоматически'
+    },
+    {
+      id: 3,
+      timestamp: new Date(Date.now() - 10800000),
+      deviceName: 'Замок входной двери',
+      action: 'Разблокировано',
+      user: 'Иван Петров',
+      method: 'Ключ-карта'
+    }
+  ];
 }
 
 // Переключение состояния системы безопасности
@@ -234,43 +266,35 @@ function toggleSystem() {
   securityStatus.value.system = securityStatus.value.system === 'armed' 
     ? 'disarmed' 
     : 'armed';
-  
-  // Добавляем событие
-  securityEvents.value.unshift({
-    id: Date.now(),
-    timestamp: new Date(),
-    device: 'Система безопасности',
-    event: securityStatus.value.system === 'armed' ? 'Активирована' : 'Деактивирована',
-    status: 'Нормально'
-  });
 }
 
-// Имитация получения данных с сервера
-function fetchSecurityData() {
-  // В реальном приложении здесь был бы запрос к API
-  console.log('Получение данных безопасности...');
-  
-  // Случайно изменим некоторые значения для демонстрации
-  if (Math.random() > 0.8) {
-    securityStatus.value.motion = securityStatus.value.motion === 'detected' ? 'none' : 'detected';
-    
-    if (securityStatus.value.motion === 'detected') {
-      securityEvents.value.unshift({
-        id: Date.now(),
-        timestamp: new Date(),
-        device: 'Датчик движения',
-        event: 'Движение обнаружено',
-        status: 'Внимание'
-      });
-    }
+// Отслеживаем изменения у замков для обновления истории
+watch(locks, () => {
+  // Если есть замки, обновляем историю
+  if (locks.value.length > 0) {
+    fetchLockHistory();
   }
-}
+}, { immediate: false });
 
-onMounted(() => {
-  // Симуляция периодического обновления данных
-  setInterval(fetchSecurityData, 10000);
+// При монтировании компонента
+onMounted(async () => {
+  // Загружаем устройства, если они еще не загружены
+  if (deviceStore.devices.length === 0) {
+    await deviceStore.fetchDevices();
+  }
+  
+  // Загружаем историю замков
+  fetchLockHistory();
+  
+  // Устанавливаем интервал для обновления данных
+  const updateInterval = setInterval(() => {
+    fetchLockHistory();
+  }, 30000); // Обновляем каждые 30 секунд
+  
+  // Очищаем интервал при размонтировании компонента
+  return () => clearInterval(updateInterval);
 });
-</script>
+</script> 
 
 <style scoped>
 .security-widget {

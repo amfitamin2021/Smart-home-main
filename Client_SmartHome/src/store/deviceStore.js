@@ -266,75 +266,89 @@ export const useDeviceStore = defineStore('devices', {
       }
     },
     
-    async sendCommand(id, command, parameters = {}) {
+    async sendCommand(deviceId, command, params = {}) {
       try {
-        const device = this.getDeviceById(id)
+        console.log(`Отправка команды ${command} для устройства ${deviceId}:`, params);
         
-        if (!device) {
-          throw new Error(`Устройство с ID ${id} не найдено`)
-        }
+        // Отправляем команду на сервер
+        const result = await api.devices.sendCommand(deviceId, {
+          command: command,
+          parameters: params
+        });
         
-        // Проверяем, можно ли управлять устройством
-        if (!device.canControl) {
-          throw new Error(`Устройство находится в состоянии OFFLINE и не может быть виртуальным`)
-        }
-        
-        console.log(`Отправка команды ${command} на устройство ${id} с параметрами:`, parameters)
-        
-        // Отправляем запрос
-        const response = await api.devices.sendCommand(id, { 
-          command, 
-          parameters 
-        })
-        
-        console.log('Ответ от сервера:', response)
-        
-        // Если сервер вернул обновленные свойства, обновляем их локально
-        if (response && response.properties) {
-          const deviceIndex = this.devices.findIndex(d => d.id === id)
-          if (deviceIndex !== -1) {
-            // Обновляем свойства
-            this.devices[deviceIndex].rawProperties = { ...this.devices[deviceIndex].rawProperties, ...response.properties }
-            
-            // Обновляем вычисляемые свойства (активность, яркость, цвет и т.д.)
-            // Для активности учитываем оба свойства
-            if (response.properties.attr_server_active !== undefined || response.properties.tb_power !== undefined) {
-              const hasServerActive = response.properties.attr_server_active !== undefined;
-              const serverActive = hasServerActive ? response.properties.attr_server_active === 'true' : this.devices[deviceIndex].active;
-              
-              const hasPower = response.properties.tb_power !== undefined;
-              const powerOn = hasPower ? response.properties.tb_power === 'on' : this.devices[deviceIndex].active;
-              
-              // Для ТВ и других устройств требуется обе проверки
-              if (this.devices[deviceIndex].category === 'APPLIANCES' && this.devices[deviceIndex].subType === 'TV') {
-                this.devices[deviceIndex].active = serverActive && powerOn;
-              } else {
-                // Для прочих устройств достаточно любого из двух свойств
-                this.devices[deviceIndex].active = hasServerActive ? serverActive : powerOn;
-              }
+        // Обновляем локальное состояние устройства, если команда выполнена успешно
+        const device = this.getDeviceById(deviceId);
+        if (device) {
+          // Для команды setState обновляем параметры устройства
+          if (command === 'setState' && params) {
+            if (!device.rawProperties) {
+              device.rawProperties = {};
             }
             
-            if (response.properties.tb_brightness) {
-              this.devices[deviceIndex].brightness = parseInt(response.properties.tb_brightness)
-            }
+            // Обновляем каждый измененный параметр
+            Object.keys(params).forEach(key => {
+              device.rawProperties[key] = params[key];
+            });
             
-            if (response.properties.tb_color) {
-              this.devices[deviceIndex].color = `#${response.properties.tb_color}`
+            // Если это было изменение состояния замка, добавляем запись в историю
+            if (params.tb_locked !== undefined && 
+                (device.type === 'lock' || 
+                (device.category === 'SECURITY' && device.subType === 'SMART_LOCK'))) {
+              this.addLockHistoryEntry(deviceId, params.tb_locked === 'true');
             }
           }
         }
         
-        return response
+        return result;
       } catch (error) {
-        console.error(`Ошибка при отправке команды ${command} на устройство ${id}:`, error)
-        
-        // Используем ошибку с сервера, если она есть
-        if (error.response && error.response.data && error.response.data.message) {
-          throw new Error(error.response.data.message)
-        }
-        
-        throw error
+        console.error('Ошибка при отправке команды устройству:', error);
+        throw error;
       }
+    },
+    
+    // Метод для добавления записи в историю замка
+    async addLockHistoryEntry(deviceId, isLocked) {
+      try {
+        const device = this.getDeviceById(deviceId);
+        if (!device) return;
+        
+        const historyEntry = {
+          deviceId: deviceId,
+          deviceName: device.name,
+          action: isLocked ? 'Заблокировано' : 'Разблокировано',
+          user: 'Текущий пользователь', // В реальном приложении - имя текущего пользователя
+          method: 'Приложение'
+        };
+        
+        // Отправляем запись в историю на сервер
+        await api.devices.addLockHistoryEntry(deviceId, historyEntry);
+        console.log('Запись о состоянии замка добавлена в историю:', historyEntry);
+      } catch (error) {
+        console.error('Ошибка при добавлении записи в историю замка:', error);
+      }
+    },
+    
+    // Метод для переключения состояния замка
+    async toggleLock(deviceId) {
+      const device = this.getDeviceById(deviceId);
+      if (!device) {
+        throw new Error('Устройство не найдено');
+      }
+      
+      // Проверяем, является ли устройство замком
+      if (!(device.type === 'lock' || 
+          (device.category === 'SECURITY' && device.subType === 'SMART_LOCK'))) {
+        throw new Error('Устройство не является замком');
+      }
+      
+      // Получаем текущее состояние
+      const currentState = device.rawProperties?.tb_locked === 'true';
+      const newState = !currentState;
+      
+      // Отправляем команду
+      return this.sendCommand(deviceId, 'setState', { 
+        tb_locked: newState.toString() 
+      });
     },
     
     // Методы для работы с умной лампой

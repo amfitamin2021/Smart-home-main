@@ -48,7 +48,7 @@
 
     <!-- Панель статуса безопасности -->
     <div v-if="isRootRoute" class="mb-6 p-4 bg-white rounded-xl shadow-sm">
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div 
           class="p-4 rounded-lg text-center"
           :class="securityStatus.system === 'armed' ? 'bg-green-50 text-green-700' : 'bg-gray-50'"
@@ -61,16 +61,6 @@
         </div>
         <div 
           class="p-4 rounded-lg text-center"
-          :class="securityStatus.doorsWindows === 'secured' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'"
-        >
-          <div class="text-xl mb-1">
-            <i class="fas fa-door-closed"></i>
-          </div>
-          <h3 class="font-semibold">Двери и окна</h3>
-          <p>{{ securityStatus.doorsWindows === 'secured' ? 'Закрыты' : 'Открыты' }}</p>
-        </div>
-        <div 
-          class="p-4 rounded-lg text-center"
           :class="securityStatus.activeCameras > 0 ? 'bg-green-50 text-green-700' : 'bg-gray-50'"
         >
           <div class="text-xl mb-1">
@@ -78,16 +68,6 @@
           </div>
           <h3 class="font-semibold">Камеры</h3>
           <p>{{ securityStatus.activeCameras }} из {{ securityStatus.totalCameras }} активны</p>
-        </div>
-        <div 
-          class="p-4 rounded-lg text-center"
-          :class="securityStatus.motion === 'detected' ? 'bg-yellow-50 text-yellow-700' : 'bg-green-50 text-green-700'"
-        >
-          <div class="text-xl mb-1">
-            <i class="fas fa-running"></i>
-          </div>
-          <h3 class="font-semibold">Движение</h3>
-          <p>{{ securityStatus.motion === 'detected' ? 'Обнаружено' : 'Не обнаружено' }}</p>
         </div>
       </div>
       
@@ -123,42 +103,29 @@
     <!-- Содержимое вложенных маршрутов -->
     <router-view></router-view>
     
-    <!-- Плитки с датчиками безопасности -->
-    <div v-if="isRootRoute" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
-      <div 
-        v-for="sensor in securitySensors" 
-        :key="sensor.id"
-        class="bg-white p-4 rounded-xl shadow-sm"
-        :class="{ 'border-l-4 border-red-500': sensor.status === 'triggered' }"
-      >
-        <div class="flex justify-between items-start mb-4">
-          <div>
-            <h3 class="font-semibold">{{ sensor.name }}</h3>
-            <p class="text-gray-600">{{ sensor.location }}</p>
-          </div>
-          <div class="flex gap-2">
-            <div 
-              class="h-4 w-4 rounded-full mt-1"
-              :class="sensor.status === 'ok' ? 'bg-green-500' : sensor.status === 'triggered' ? 'bg-red-500' : 'bg-yellow-500'"
-            ></div>
-          </div>
-        </div>
-        <div class="flex justify-between items-center">
-          <div class="text-sm text-gray-500">
-            <i :class="getSensorIcon(sensor.type)"></i>
-            {{ getSensorTypeText(sensor.type) }}
-          </div>
-          <div class="text-sm">
-            {{ getSensorStatusText(sensor.status) }}
-          </div>
-        </div>
-      </div>
-    </div>
-    
     <!-- Последние события безопасности -->
     <div v-if="isRootRoute" class="mt-6">
       <h2 class="text-xl font-semibold mb-4">Последние события</h2>
-      <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+      
+      <!-- Индикатор загрузки -->
+      <div v-if="loadingHistory" class="flex justify-center my-8">
+        <div class="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+      
+      <!-- Сообщение об ошибке истории -->
+      <div v-else-if="historyError" class="bg-red-50 text-red-600 p-4 rounded-lg mb-6">
+        <i class="fas fa-exclamation-circle mr-2"></i>{{ historyError }}
+      </div>
+      
+      <!-- Сообщение, если нет истории -->
+      <div v-else-if="lockHistory.length === 0" class="bg-gray-50 p-8 rounded-lg text-center">
+        <i class="fas fa-history text-gray-300 text-5xl mb-4"></i>
+        <h3 class="text-xl font-medium mb-2">История событий пуста</h3>
+        <p class="text-gray-600 mb-4">История событий безопасности пока не содержит записей.</p>
+      </div>
+      
+      <!-- Таблица истории -->
+      <div v-else class="bg-white rounded-xl shadow-sm overflow-hidden">
         <div class="overflow-x-auto">
           <table class="w-full">
             <thead class="bg-gray-50">
@@ -166,22 +133,17 @@
                 <th class="px-4 py-3 text-left">Время</th>
                 <th class="px-4 py-3 text-left">Устройство</th>
                 <th class="px-4 py-3 text-left">Событие</th>
-                <th class="px-4 py-3 text-left">Статус</th>
+                <th class="px-4 py-3 text-left">Пользователь</th>
+                <th class="px-4 py-3 text-left">Метод</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="event in securityEvents" :key="event.id" class="border-t">
-                <td class="px-4 py-3">{{ formatDate(event.timestamp) }}</td>
-                <td class="px-4 py-3">{{ event.device }}</td>
-                <td class="px-4 py-3">{{ event.event }}</td>
-                <td class="px-4 py-3">
-                  <span 
-                    class="px-2 py-1 text-xs rounded-full"
-                    :class="getEventStatusClass(event.status)"
-                  >
-                    {{ event.status }}
-                  </span>
-                </td>
+              <tr v-for="activity in lockHistory" :key="activity.id" class="border-t">
+                <td class="px-4 py-3">{{ formatDate(activity.timestamp) }}</td>
+                <td class="px-4 py-3">{{ activity.deviceName }}</td>
+                <td class="px-4 py-3" :class="getEventActionClass(activity.action)">{{ activity.action }}</td>
+                <td class="px-4 py-3">{{ activity.user }}</td>
+                <td class="px-4 py-3">{{ activity.method }}</td>
               </tr>
             </tbody>
           </table>
@@ -194,12 +156,19 @@
 <script>
 import { defineComponent, ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import api from '../services/api'
+import { useDeviceStore } from '../store/deviceStore'
 
 export default defineComponent({
   name: 'SecurityView',
   
   setup() {
     const route = useRoute()
+    const deviceStore = useDeviceStore()
+    
+    // Флаги загрузки и ошибок
+    const loadingHistory = ref(false)
+    const historyError = ref(null)
     
     // Проверка, находимся ли мы на корневом маршруте /security
     const isRootRoute = computed(() => {
@@ -214,10 +183,8 @@ export default defineComponent({
     // Статус системы безопасности
     const securityStatus = ref({
       system: 'armed', // armed или disarmed
-      doorsWindows: 'secured', // secured или open
       activeCameras: 4,
-      totalCameras: 5,
-      motion: 'none' // none или detected
+      totalCameras: 5
     })
     
     // Переключение системы безопасности
@@ -225,152 +192,92 @@ export default defineComponent({
       securityStatus.value.system = securityStatus.value.system === 'armed' ? 'disarmed' : 'armed'
     }
     
-    // Датчики безопасности
-    const securitySensors = ref([
-      {
-        id: 1,
-        name: 'Датчик движения',
-        location: 'Гостиная',
-        type: 'motion',
-        status: 'ok'
-      },
-      {
-        id: 2,
-        name: 'Дверной сенсор',
-        location: 'Входная дверь',
-        type: 'door',
-        status: 'ok'
-      },
-      {
-        id: 3,
-        name: 'Датчик движения',
-        location: 'Коридор',
-        type: 'motion',
-        status: 'triggered'
-      },
-      {
-        id: 4,
-        name: 'Датчик окна',
-        location: 'Кухня',
-        type: 'window',
-        status: 'ok'
-      },
-      {
-        id: 5,
-        name: 'Датчик дыма',
-        location: 'Кухня',
-        type: 'smoke',
-        status: 'ok'
-      },
-      {
-        id: 6,
-        name: 'Датчик протечки',
-        location: 'Ванная комната',
-        type: 'water',
-        status: 'warning'
-      }
-    ])
-    
     // События безопасности
-    const securityEvents = ref([
-      {
-        id: 1,
-        timestamp: new Date(Date.now() - 1800000),
-        device: 'Датчик движения (Коридор)',
-        event: 'Обнаружено движение',
-        status: 'Тревога'
-      },
-      {
-        id: 2,
-        timestamp: new Date(Date.now() - 3600000),
-        device: 'Система безопасности',
-        event: 'Активация охранной системы',
-        status: 'Информация'
-      },
-      {
-        id: 3,
-        timestamp: new Date(Date.now() - 7200000),
-        device: 'Входная дверь',
-        event: 'Дверь открыта',
-        status: 'Предупреждение'
-      },
-      {
-        id: 4,
-        timestamp: new Date(Date.now() - 86400000),
-        device: 'Датчик протечки (Ванная)',
-        event: 'Низкий заряд батареи',
-        status: 'Предупреждение'
-      },
-      {
-        id: 5,
-        timestamp: new Date(Date.now() - 172800000),
-        device: 'Система безопасности',
-        event: 'Обновление прошивки',
-        status: 'Информация'
-      }
-    ])
+    const lockHistory = ref([])
     
-    // Получение иконки для типа датчика
-    const getSensorIcon = (type) => {
-      switch (type) {
-        case 'motion':
-          return 'fas fa-running mr-1'
-        case 'door':
-          return 'fas fa-door-closed mr-1'
-        case 'window':
-          return 'fas fa-window-maximize mr-1'
-        case 'smoke':
-          return 'fas fa-smoke mr-1'
-        case 'water':
-          return 'fas fa-tint mr-1'
-        default:
-          return 'fas fa-sensor mr-1'
+    // Получение истории замков
+    const fetchLockHistory = async () => {
+      loadingHistory.value = true
+      historyError.value = null
+      
+      try {
+        const historyData = await api.devices.getAllLockHistory()
+        lockHistory.value = historyData || []
+        
+        // Если нет данных и режим разработки, используем демо-данные
+        if (lockHistory.value.length === 0 && process.env.NODE_ENV === 'development') {
+          lockHistory.value = getDemoLockHistory()
+        }
+      } catch (err) {
+        console.error('Ошибка при загрузке истории замков:', err)
+        historyError.value = 'Не удалось загрузить историю. Попробуйте позже.'
+        
+        // В режиме разработки используем демо-данные
+        if (process.env.NODE_ENV === 'development') {
+          lockHistory.value = getDemoLockHistory()
+        }
+      } finally {
+        loadingHistory.value = false
       }
     }
     
-    // Получение названия типа датчика
-    const getSensorTypeText = (type) => {
-      switch (type) {
-        case 'motion':
-          return 'Датчик движения'
-        case 'door':
-          return 'Датчик двери'
-        case 'window':
-          return 'Датчик окна'
-        case 'smoke':
-          return 'Датчик дыма'
-        case 'water':
-          return 'Датчик протечки'
-        default:
-          return 'Датчик'
-      }
-    }
-    
-    // Получение текста статуса датчика
-    const getSensorStatusText = (status) => {
-      switch (status) {
-        case 'ok':
-          return 'В порядке'
-        case 'triggered':
-          return 'Срабатывание'
-        case 'warning':
-          return 'Требует внимания'
-        default:
-          return 'Неизвестно'
-      }
+    // Демо-данные для истории замков
+    const getDemoLockHistory = () => {
+      return [
+        {
+          id: 1,
+          timestamp: new Date(Date.now() - 3600000),
+          deviceName: 'Замок входной двери',
+          action: 'Заблокировано',
+          user: 'Иван Петров',
+          method: 'Приложение'
+        },
+        {
+          id: 2,
+          timestamp: new Date(Date.now() - 7200000),
+          deviceName: 'Замок гаража',
+          action: 'Разблокировано',
+          user: 'Система',
+          method: 'Автоматически'
+        },
+        {
+          id: 3,
+          timestamp: new Date(Date.now() - 10800000),
+          deviceName: 'Замок входной двери',
+          action: 'Разблокировано',
+          user: 'Иван Петров',
+          method: 'Ключ-карта'
+        },
+        {
+          id: 4,
+          timestamp: new Date(Date.now() - 86400000),
+          deviceName: 'Замок черного входа',
+          action: 'Заблокировано',
+          user: 'Анна Сидорова',
+          method: 'Приложение'
+        },
+        {
+          id: 5,
+          timestamp: new Date(Date.now() - 172800000),
+          deviceName: 'Замок гаража',
+          action: 'Ошибка доступа',
+          user: 'Неизвестно',
+          method: 'Код доступа'
+        }
+      ]
     }
     
     // Получение класса для статуса события
-    const getEventStatusClass = (status) => {
-      switch (status) {
-        case 'Тревога':
-          return 'bg-red-100 text-red-800'
-        case 'Предупреждение':
-          return 'bg-yellow-100 text-yellow-800'
-        case 'Информация':
-          return 'bg-blue-100 text-blue-800'
+    const getEventActionClass = (action) => {
+      switch (action) {
+        case 'Заблокировано':
+          return 'text-red-600'
+        case 'Разблокировано':
+          return 'text-green-600'
+        case 'Ошибка доступа':
+          return 'text-yellow-600'
         default:
-          return 'bg-gray-100 text-gray-800'
+          return 'text-gray-500'
       }
     }
     
@@ -384,21 +291,25 @@ export default defineComponent({
       })
     }
     
-    onMounted(() => {
-      // В реальном приложении здесь была бы загрузка данных
+    onMounted(async () => {
+      // Загружаем устройства, если они еще не загружены
+      if (deviceStore.devices.length === 0) {
+        await deviceStore.fetchDevices()
+      }
+      
+      // Загружаем историю замков
+      fetchLockHistory()
     })
     
     return {
       isRootRoute,
       isActive,
       securityStatus,
-      securitySensors,
-      securityEvents,
+      lockHistory,
+      loadingHistory,
+      historyError,
       toggleSecuritySystem,
-      getSensorIcon,
-      getSensorTypeText,
-      getSensorStatusText,
-      getEventStatusClass,
+      getEventActionClass,
       formatDate
     }
   }

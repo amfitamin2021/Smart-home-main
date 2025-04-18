@@ -28,6 +28,12 @@
           </router-link>
         </li>
         <li>
+          <router-link to="/security" class="flex items-center p-2 rounded-lg hover:bg-blue-50" :class="{ 'bg-blue-100 text-blue-600': isActive('/security') }">
+            <i class="fas fa-shield-alt mr-2"></i>
+            <span>Безопасность</span>
+          </router-link>
+        </li>
+        <li>
           <router-link to="/scenarios" class="flex items-center p-2 rounded-lg hover:bg-blue-50" :class="{ 'bg-blue-100 text-blue-600': isActive('/scenarios') }">
             <i class="fas fa-magic mr-2"></i>
             <span>Сценарии</span>
