@@ -12,6 +12,7 @@
     "@vueuse/core": "^13.1.0",
     "axios": "^1.6.2",
     "chart.js": "^4.4.9",
+    "date-fns": "^4.1.0",
     "pinia": "^2.1.7",
     "pinia-plugin-persistedstate": "^3.2.0",
     "postprocessing": "^6.37.2",
@@ -20,7 +21,11 @@
     "vue-chartjs": "^5.3.2",
     "vue-color": "^2.8.1",
     "vue-router": "^4.2.5",
+<<<<<<< HEAD
     "vue3-grid-layout": "^1.0.0"
+=======
+    "vue-toastification": "^2.0.0-rc.5"
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^4.5.0",

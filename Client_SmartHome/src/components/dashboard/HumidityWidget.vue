@@ -31,7 +31,11 @@
             cy="60"
           />
           <circle
+<<<<<<< HEAD
             class="text-red-600"
+=======
+            class="text-blue-600"
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
             stroke-width="12"
             :stroke-dasharray="circumference"
             :stroke-dashoffset="humidityOffset"
@@ -75,7 +79,11 @@
 </template>
 
 <script setup>
+<<<<<<< HEAD
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
+=======
+import { ref, computed } from 'vue';
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useDeviceStore } from '../../store/deviceStore';
@@ -83,7 +91,11 @@ import { useDeviceStore } from '../../store/deviceStore';
 const props = defineProps({
   device: {
     type: Object,
+<<<<<<< HEAD
     default: null
+=======
+    required: true
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
   },
   deviceId: {
     type: String,
@@ -92,6 +104,7 @@ const props = defineProps({
 });
 
 const deviceStore = useDeviceStore();
+<<<<<<< HEAD
 const isEnabled = ref(false);
 let updateInterval = null;
 
@@ -110,13 +123,20 @@ watch(() => deviceData.value, (newDevice) => {
     console.log(`HumidityWidget: обновлено состояние для ${props.deviceId}, активно:`, isEnabled.value);
   }
 }, { immediate: true });
+=======
+const isEnabled = ref(props.device?.active || false);
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
 
 // Константы для круговой диаграммы
 const circumference = 2 * Math.PI * 54;
 
 // Получаем значение влажности из свойств устройства
 const humidityValue = computed(() => {
+<<<<<<< HEAD
   const value = deviceData.value?.rawProperties?.tb_humidity;
+=======
+  const value = props.device?.rawProperties?.tb_humidity;
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
   return value ? parseInt(value) : '--';
 });
 
@@ -192,7 +212,11 @@ const humidityStatus = computed(() => {
 
 // Форматирование времени последнего обновления
 const lastUpdated = computed(() => {
+<<<<<<< HEAD
   const lastUpdateTime = deviceData.value?.rawProperties?.tb_last_updated;
+=======
+  const lastUpdateTime = props.device?.rawProperties?.tb_last_updated;
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
   if (!lastUpdateTime) return 'Неизвестно';
   
   try {
@@ -205,10 +229,15 @@ const lastUpdated = computed(() => {
 
 // Функция обновления данных
 const refreshData = async () => {
+<<<<<<< HEAD
   console.log(`HumidityWidget: обновление данных для устройства ${props.deviceId}`);
   try {
     await deviceStore.fetchDevices();
     console.log(`HumidityWidget: данные успешно обновлены для ${props.deviceId}`);
+=======
+  try {
+    await deviceStore.fetchDevices();
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
   } catch (err) {
     console.error('Ошибка при обновлении данных:', err);
   }
@@ -216,16 +245,22 @@ const refreshData = async () => {
 
 // Функция переключения состояния устройства
 const toggleState = async () => {
+<<<<<<< HEAD
   console.log(`HumidityWidget: переключение состояния для ${props.deviceId} на ${isEnabled.value}`);
   try {
     await deviceStore.toggleDevice(props.deviceId, isEnabled.value);
     console.log(`HumidityWidget: состояние успешно изменено для ${props.deviceId}`);
+=======
+  try {
+    await deviceStore.toggleDevice(props.deviceId, isEnabled.value);
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
   } catch (error) {
     console.error('Ошибка при обновлении состояния:', error);
     // В случае ошибки восстанавливаем предыдущее состояние
     isEnabled.value = !isEnabled.value;
   }
 };
+<<<<<<< HEAD
 
 // Настройка автоматического обновления при монтировании компонента
 onMounted(() => {
@@ -250,6 +285,8 @@ onUnmounted(() => {
     updateInterval = null;
   }
 });
+=======
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
 </script>
 
 <style scoped>

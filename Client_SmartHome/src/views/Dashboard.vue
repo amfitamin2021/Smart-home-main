@@ -1,4 +1,5 @@
 <template>
+<<<<<<< HEAD
   <div class="dashboard-page h-full flex flex-col">
     <!-- Хедер страницы -->
     <div class="bg-white border-b border-gray-200 p-4 shadow-sm">
@@ -36,6 +37,30 @@
           </div>
         </div>
       </div>
+=======
+  <div class="p-4">
+    <!-- Заголовок с кнопкой добавления виджета -->
+    <div class="flex justify-between items-center mb-6">
+      <h1 class="text-2xl font-medium">Умный дом</h1>
+      <button 
+        @click="isEditMode = !isEditMode" 
+        class="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center text-sm"
+      >
+        <i class="fas fa-pencil-alt mr-2"></i>
+        {{ isEditMode ? 'Готово' : 'Настроить' }}
+      </button>
+    </div>
+    
+    <!-- Сетка виджетов -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+      <!-- Динамически подключаемые виджеты -->
+      <template v-for="widget in widgets" :key="widget.id">
+        <DynamicWidget :widget="widget" />
+      </template>
+      
+      <!-- Кнопка добавления нового виджета -->
+      <WidgetSelector v-if="widgets.length < maxWidgets" />
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
     </div>
 
     <!-- Основное содержимое дашборда -->
@@ -148,6 +173,7 @@
 </template>
 
 <script setup>
+<<<<<<< HEAD
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useDashboardStore } from '../store/dashboardStore';
 import { useDeviceStore } from '../store/deviceStore';
@@ -155,10 +181,18 @@ import DeviceWidget from '../components/dashboard/DeviceWidget.vue';
 import SecurityWidget from '../components/dashboard/SecurityWidget.vue';
 import WidgetSelector from '../components/dashboard/WidgetSelector.vue';
 import { GridLayout, GridItem } from 'vue3-grid-layout';
+=======
+import { ref, onMounted, computed } from 'vue';
+import { useDashboardStore } from '../store/dashboardStore';
+import { useDeviceStore } from '../store/deviceStore';
+import DynamicWidget from '../components/dashboard/DynamicWidget.vue';
+import WidgetSelector from '../components/dashboard/WidgetSelector.vue';
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
 
 const dashboardStore = useDashboardStore();
 const deviceStore = useDeviceStore();
 
+<<<<<<< HEAD
 // Состояние UI
 const showWidgetSelector = ref(false);
 const isLoading = ref(true);
@@ -370,10 +404,32 @@ onUnmounted(() => {
     clearInterval(updateInterval);
     updateInterval = null;
   }
+=======
+// Режим редактирования
+const isEditMode = ref(false);
+
+// Максимальное количество виджетов
+const maxWidgets = 6;
+
+// Получаем список виджетов
+const widgets = computed(() => {
+  return dashboardStore.getWidgets;
+});
+
+onMounted(async () => {
+  // Загружаем список виджетов
+  dashboardStore.loadWidgets();
+  
+  // Загружаем список устройств, если они еще не загружены
+  if (deviceStore.devices.length === 0) {
+    await deviceStore.fetchDevices();
+  }
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
 });
 </script>
 
 <style scoped>
+<<<<<<< HEAD
 .dashboard-page {
   min-height: 100vh;
 }
@@ -460,4 +516,7 @@ onUnmounted(() => {
     padding: 0 1rem;
   }
 }
+=======
+/* Дополнительные стили, если необходимо */
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
 </style> 

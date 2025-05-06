@@ -1,100 +1,240 @@
 <template>
-  <div class="bg-white p-6 rounded-xl shadow-sm">
-    <div class="flex justify-between items-center mb-6">
-      <h3 class="text-lg font-semibold">Уведомления</h3>
-      <span v-if="unreadCount" class="px-2 py-1 rounded-full bg-red-50 text-red-600 text-sm">
-        {{ unreadCount }} новых
-      </span>
+  <div class="notifications-widget">
+    <div class="widget-header">
+      <h3><i class="fas fa-bell"></i> Уведомления</h3>
     </div>
-    <div class="space-y-4">
-      <div 
-        v-for="notification in notifications" 
-        :key="notification.id"
-        class="flex items-center gap-3 p-3 rounded-lg"
-        :class="notification.class"
-      >
-        <i :class="notification.icon"></i>
-        <span>{{ notification.message }}</span>
+    <div class="widget-content">
+      <div v-if="loading" class="loading-indicator">
+        <i class="fas fa-spinner fa-spin"></i> Загрузка...
       </div>
-      
-      <div v-if="notifications.length === 0" class="text-center py-4 text-gray-500">
-        <i class="text-3xl fas fa-bell-slash mb-2"></i>
-        <p>Нет новых уведомлений</p>
+      <div v-else-if="notifications.length === 0" class="no-notifications">
+        <i class="fas fa-check-circle"></i> Нет новых уведомлений
       </div>
-      
-      <button 
-        v-if="notifications.length > 0" 
-        class="w-full py-2 text-blue-600 text-sm hover:underline"
-        @click="viewAllNotifications"
-      >
-        Посмотреть все уведомления
-      </button>
+      <div v-else class="notifications-list">
+        <div 
+          v-for="notification in notifications" 
+          :key="notification.id" 
+          class="notification-item"
+          :class="{'notification-critical': notification.level === 'critical',
+                  'notification-warning': notification.level === 'warning',
+                  'notification-info': notification.level === 'info'}"
+        >
+          <div class="notification-icon">
+            <i :class="getNotificationIcon(notification.level)"></i>
+          </div>
+          <div class="notification-content">
+            <div class="notification-title">{{ notification.title }}</div>
+            <div class="notification-message">{{ notification.message }}</div>
+            <div class="notification-time">{{ formatTime(notification.timestamp) }}</div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
-<script>
-export default {
-  name: 'NotificationsWidget',
-  data() {
-    return {
-      notifications: [
-        {
-          id: 1,
-          message: 'Обнаружено движение (Гараж)',
-          icon: 'fas fa-circle-exclamation',
-          class: 'bg-red-50 text-red-700',
-          timestamp: new Date(),
-          read: false
-        },
-        {
-          id: 2,
-          message: 'Низкий заряд батареи (Датчик)',
-          icon: 'fas fa-triangle-exclamation',
-          class: 'bg-yellow-50 text-yellow-700',
-          timestamp: new Date(Date.now() - 3600000), // 1 час назад
-          read: false
-        },
-        {
-          id: 3,
-          message: 'Завершено обновление ПО',
-          icon: 'fas fa-circle-check',
-          class: 'bg-green-50 text-green-700',
-          timestamp: new Date(Date.now() - 86400000), // 1 день назад
-          read: true
-        }
-      ]
-    }
+<script setup>
+import { ref, onMounted } from 'vue';
+import { useToast } from 'vue-toastification';
+
+const toast = useToast();
+const loading = ref(true);
+const notifications = ref([]);
+
+// Пример данных уведомлений
+const demoNotifications = [
+  {
+    id: 1,
+    level: 'critical',
+    title: 'Критическая температура',
+    message: 'Температура в спальне превысила допустимый порог: 31°C',
+    timestamp: Date.now() - 1800000 // 30 минут назад
   },
-  computed: {
-    unreadCount() {
-      return this.notifications.filter(n => !n.read).length
-    },
-    recentNotifications() {
-      // Получаем последние 3 уведомления
-      return this.notifications.sort((a, b) => 
-        b.timestamp.getTime() - a.timestamp.getTime()
-      ).slice(0, 3)
-    }
+  {
+    id: 2,
+    level: 'warning',
+    title: 'Датчик движения',
+    message: 'Обнаружено движение в гостиной во время вашего отсутствия',
+    timestamp: Date.now() - 3600000 // 1 час назад
   },
-  methods: {
-    viewAllNotifications() {
-      // Переход на страницу всех уведомлений
-      this.$router.push('/notifications')
-    },
-    markAllAsRead() {
-      // Отметить все уведомления как прочитанные
-      this.notifications.forEach(notification => {
-        notification.read = true
-      })
-    },
-    fetchNotifications() {
-      // Здесь будет вызов API для получения уведомлений
-      console.log('Загрузка уведомлений')
-    }
-  },
-  mounted() {
-    this.fetchNotifications()
+  {
+    id: 3,
+    level: 'info',
+    title: 'Обновление системы',
+    message: 'Система умного дома успешно обновлена до версии 2.4.1',
+    timestamp: Date.now() - 86400000 // 1 день назад
   }
+];
+
+const getNotificationIcon = (level) => {
+  switch (level) {
+    case 'critical':
+      return 'fas fa-exclamation-circle';
+    case 'warning':
+      return 'fas fa-exclamation-triangle';
+    case 'info':
+      return 'fas fa-info-circle';
+    default:
+      return 'fas fa-bell';
+  }
+};
+
+const formatTime = (timestamp) => {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffInHours = Math.floor((now - date) / (1000 * 60 * 60));
+  
+  if (diffInHours < 24) {
+    // В течение последних 24 часов
+    if (diffInHours === 0) {
+      const diffInMinutes = Math.floor((now - date) / (1000 * 60));
+      return `${diffInMinutes} мин. назад`;
+    } else {
+      return `${diffInHours} ч. назад`;
+    }
+  } else {
+    // Более 24 часов назад - показываем дату
+    return date.toLocaleString('ru-RU', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+};
+
+onMounted(() => {
+  // Имитация загрузки данных с API
+  setTimeout(() => {
+    notifications.value = demoNotifications;
+    loading.value = false;
+  }, 1500);
+});
+</script>
+
+<style scoped>
+.notifications-widget {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-radius: 10px;
+  background-color: #ffffff;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
 }
-</script> 
+
+.widget-header {
+  padding: 15px;
+  background-color: #4a6fff;
+  color: white;
+}
+
+.widget-header h3 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  font-size: 16px;
+}
+
+.widget-header h3 i {
+  margin-right: 8px;
+}
+
+.widget-content {
+  flex: 1;
+  padding: 15px;
+  overflow-y: auto;
+}
+
+.loading-indicator {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  color: #666;
+}
+
+.no-notifications {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  color: #666;
+}
+
+.no-notifications i {
+  font-size: 32px;
+  color: #4CAF50;
+  margin-bottom: 10px;
+}
+
+.notifications-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.notification-item {
+  display: flex;
+  padding: 12px;
+  border-radius: 8px;
+  background-color: #f5f7ff;
+  transition: background-color 0.2s;
+}
+
+.notification-item:hover {
+  background-color: #edf0ff;
+}
+
+.notification-critical {
+  border-left: 4px solid #f44336;
+}
+
+.notification-warning {
+  border-left: 4px solid #ff9800;
+}
+
+.notification-info {
+  border-left: 4px solid #2196f3;
+}
+
+.notification-icon {
+  margin-right: 12px;
+  display: flex;
+  align-items: flex-start;
+  padding-top: 2px;
+}
+
+.notification-critical .notification-icon {
+  color: #f44336;
+}
+
+.notification-warning .notification-icon {
+  color: #ff9800;
+}
+
+.notification-info .notification-icon {
+  color: #2196f3;
+}
+
+.notification-content {
+  flex: 1;
+}
+
+.notification-title {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.notification-message {
+  font-size: 14px;
+  color: #333;
+  margin-bottom: 5px;
+}
+
+.notification-time {
+  font-size: 12px;
+  color: #666;
+}
+</style> 

@@ -53,7 +53,10 @@ import TVWidget from './TVWidget.vue';
 import HumidityWidget from './HumidityWidget.vue';
 import TemperatureWidget from './TemperatureWidget.vue';
 import LightWidget from './LightWidget.vue';
+<<<<<<< HEAD
 import SecurityWidget from './SecurityWidget.vue';
+=======
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
 import GenericClimateWidget from './GenericClimateWidget.vue';
 import GenericApplianceWidget from './GenericApplianceWidget.vue';
 import GenericWidget from './GenericWidget.vue';
@@ -64,7 +67,10 @@ const components = {
   HumidityWidget: markRaw(HumidityWidget),
   TemperatureWidget: markRaw(TemperatureWidget),
   LightWidget: markRaw(LightWidget),
+<<<<<<< HEAD
   SecurityWidget: markRaw(SecurityWidget),
+=======
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
   GenericClimateWidget: markRaw(GenericClimateWidget),
   GenericApplianceWidget: markRaw(GenericApplianceWidget),
   GenericWidget: markRaw(GenericWidget)
@@ -87,9 +93,13 @@ let refreshInterval = null;
 // Получаем информацию об устройстве
 const device = computed(() => {
   if (!props.widget.deviceId) return null;
+<<<<<<< HEAD
   const deviceData = deviceStore.getDeviceById(props.widget.deviceId);
   console.log(`Виджет ${props.widget.id} получает устройство:`, props.widget.deviceId, deviceData);
   return deviceData;
+=======
+  return deviceStore.getDeviceById(props.widget.deviceId);
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
 });
 
 // Определяем заголовок виджета
@@ -105,8 +115,11 @@ const getDefaultTitle = computed(() => {
       return 'Датчики климата';
     case 'lighting':
       return 'Освещение';
+<<<<<<< HEAD
     case 'security':
       return 'Безопасность';
+=======
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
     case 'notifications':
       return 'Уведомления';
     default:
@@ -123,13 +136,17 @@ const resolveComponent = computed(() => {
 const refreshData = async () => {
   if (loading.value) return;
   
+<<<<<<< HEAD
   console.log(`Обновление данных для виджета ${props.widget.id}, устройство: ${props.widget.deviceId}`);
+=======
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
   loading.value = true;
   error.value = null;
   
   try {
     // Обновляем все устройства, так как целевого метода для одного устройства нет
     await deviceStore.fetchDevices();
+<<<<<<< HEAD
     console.log("Данные устройств успешно обновлены");
     
     // Проверяем доступность устройства после обновления
@@ -137,6 +154,8 @@ const refreshData = async () => {
       console.warn(`Устройство ${props.widget.deviceId} не найдено после обновления данных`);
       error.value = 'Устройство не найдено';
     }
+=======
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
   } catch (err) {
     error.value = 'Не удалось обновить данные';
     console.error('Ошибка при обновлении данных виджета:', err);
@@ -154,12 +173,18 @@ const removeWidget = () => {
 
 // Настройка автоматического обновления
 onMounted(() => {
+<<<<<<< HEAD
   console.log(`Инициализация виджета ${props.widget.id}, устройство: ${props.widget.deviceId}`);
+=======
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
   refreshData();
   
   // Запускаем периодическое обновление в соответствии с настройками
   const interval = parseInt(props.widget.settings?.refreshInterval || 10000);
+<<<<<<< HEAD
   console.log(`Установка интервала обновления: ${interval}мс`);
+=======
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
   refreshInterval = setInterval(refreshData, interval);
 });
 

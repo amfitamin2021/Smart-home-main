@@ -1,12 +1,18 @@
 import { defineStore } from 'pinia'
+<<<<<<< HEAD
 import { useDeviceStore } from './deviceStore'
+=======
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
 
 export const useDashboardStore = defineStore('dashboard', {
   state: () => ({
     widgets: [],
+<<<<<<< HEAD
     nextWidgetId: 1,
     layout: {},
     widgetLayouts: [], // Новый массив для хранения layout в формате vue-grid-layout
+=======
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
     availableWidgetTypes: [
       { 
         id: 'appliances', 
@@ -33,6 +39,7 @@ export const useDashboardStore = defineStore('dashboard', {
         category: 'LIGHTING'
       },
       {
+<<<<<<< HEAD
         id: 'security',
         name: 'Безопасность',
         component: 'SecurityWidget',
@@ -42,6 +49,8 @@ export const useDashboardStore = defineStore('dashboard', {
         recommended: true
       },
       {
+=======
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
         id: 'notifications',
         name: 'Уведомления',
         component: 'NotificationsWidget',
@@ -57,7 +66,11 @@ export const useDashboardStore = defineStore('dashboard', {
     // Получить список виджетов
     getWidgets: (state) => state.widgets,
     
+<<<<<<< HEAD
     // Получить список доступных типов виджетов (категорий)
+=======
+    // Получить список доступных типов виджетов
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
     getAvailableWidgetTypes: (state) => state.availableWidgetTypes,
     
     // Проверить, можно ли добавить еще виджет определенного типа
@@ -75,6 +88,7 @@ export const useDashboardStore = defineStore('dashboard', {
     // Проверить, есть ли уже виджет для конкретного устройства
     hasWidgetForDevice: (state) => (deviceId) => {
       return state.widgets.some(widget => widget.deviceId === deviceId);
+<<<<<<< HEAD
     },
     
     // Получить устройства для выбранной категории
@@ -90,11 +104,15 @@ export const useDashboardStore = defineStore('dashboard', {
     
     // Получить все макеты виджетов для vue-grid-layout
     getWidgetLayouts: (state) => state.widgetLayouts
+=======
+    }
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
   },
   
   actions: {
     // Добавить новый виджет
     addWidget(type, deviceId, deviceType, settings = {}) {
+<<<<<<< HEAD
       try {
         console.log('Добавление виджета:', { type, deviceId, deviceType, settings });
         
@@ -207,6 +225,63 @@ export const useDashboardStore = defineStore('dashboard', {
         console.error('Ошибка в методе addDeviceWidget:', error);
         return null;
       }
+=======
+      const widgetType = this.availableWidgetTypes.find(t => t.id === type);
+      if (!widgetType) {
+        console.error(`Тип виджета ${type} не найден`);
+        return;
+      }
+      
+      // Проверяем, нет ли уже виджета для этого устройства
+      if (deviceId && this.hasWidgetForDevice(deviceId)) {
+        console.warn(`Виджет для устройства ${deviceId} уже существует`);
+        return;
+      }
+      
+      // Определяем компонент виджета на основе типа устройства
+      let component;
+      switch (type) {
+        case 'appliances':
+          if (deviceType === 'TV') {
+            component = 'TVWidget';
+          } else {
+            component = 'GenericApplianceWidget';
+          }
+          break;
+        case 'climate':
+          if (deviceType === 'TEMPERATURE_SENSOR') {
+            component = 'TemperatureWidget';
+          } else if (deviceType === 'HUMIDITY_SENSOR') {
+            component = 'HumidityWidget';
+          } else {
+            component = 'GenericClimateWidget';
+          }
+          break;
+        case 'lighting':
+          component = 'LightWidget';
+          break;
+        case 'notifications':
+          component = 'NotificationsWidget';
+          break;
+        default:
+          component = 'GenericWidget';
+      }
+      
+      const newWidget = {
+        id: `widget_${Date.now()}`,
+        type,
+        deviceId,
+        deviceType,
+        settings,
+        component,
+        createdAt: new Date().toISOString()
+      };
+      
+      this.widgets.push(newWidget);
+      this.saveWidgets();
+      
+      return newWidget;
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
     },
     
     // Удалить виджет
@@ -215,11 +290,14 @@ export const useDashboardStore = defineStore('dashboard', {
       if (index !== -1) {
         this.widgets.splice(index, 1);
         this.saveWidgets();
+<<<<<<< HEAD
         
         // Удаляем также виджет из макета
         this.widgetLayouts = this.widgetLayouts.filter(item => item.i !== widgetId);
         this.saveWidgetLayouts();
         
+=======
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
         return true;
       }
       return false;
@@ -236,6 +314,7 @@ export const useDashboardStore = defineStore('dashboard', {
       return false;
     },
     
+<<<<<<< HEAD
     // Сохранить макет дашборда
     saveLayout(layoutData) {
       this.layout = { ...layoutData };
@@ -297,6 +376,8 @@ export const useDashboardStore = defineStore('dashboard', {
       }
     },
     
+=======
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
     // Сохранить виджеты в localStorage
     saveWidgets() {
       try {
@@ -308,6 +389,7 @@ export const useDashboardStore = defineStore('dashboard', {
     
     // Загрузить виджеты из localStorage
     loadWidgets() {
+<<<<<<< HEAD
       return new Promise((resolve) => {
         try {
           const savedWidgets = localStorage.getItem('dashboard_widgets');
@@ -368,6 +450,37 @@ export const useDashboardStore = defineStore('dashboard', {
       this.saveWidgets();
       
       return newWidget;
+=======
+      try {
+        const savedWidgets = localStorage.getItem('dashboard_widgets');
+        if (savedWidgets) {
+          this.widgets = JSON.parse(savedWidgets);
+        } else {
+          // Если виджетов нет, добавляем телевизор по умолчанию
+          this.addDefaultWidgets();
+        }
+      } catch (error) {
+        console.error('Ошибка при загрузке виджетов:', error);
+        this.addDefaultWidgets();
+      }
+    },
+    
+    // Добавить виджеты по умолчанию
+    addDefaultWidgets() {
+      // Начинаем с пустого массива виджетов
+      this.widgets = [];
+      
+      // В будущем здесь можно добавить виджеты по умолчанию, если необходимо
+      // Например, добавить виджет уведомлений
+      this.addWidget('notifications', null, null);
+    },
+    
+    // Сбросить все виджеты к настройкам по умолчанию
+    resetToDefaults() {
+      this.widgets = [];
+      this.addDefaultWidgets();
+      this.saveWidgets();
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
     }
   }
 }) 

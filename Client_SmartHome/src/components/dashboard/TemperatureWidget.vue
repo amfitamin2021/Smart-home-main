@@ -31,7 +31,7 @@
             cy="60"
           />
           <circle
-            class="text-blue-600"
+            class="text-red-600"
             stroke-width="12"
             :stroke-dasharray="circumference"
             :stroke-dashoffset="dashOffset"
@@ -74,90 +74,6 @@
         </div>
       </div>
     </div>
-
-    <button 
-      class="w-full py-2 text-blue-600 text-sm flex items-center justify-center gap-1 mt-4"
-      @click="showDetails = !showDetails"
-    >
-      {{ showDetails ? 'Скрыть детали' : 'Показать детали' }}
-      <i class="fas" :class="showDetails ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
-    </button>
-
-    <div v-if="showDetails">
-      <div class="border-t pt-4 mt-2">
-        <h4 class="text-gray-700 font-medium mb-2">История температуры</h4>
-        <div class="flex gap-2 mb-3">
-          <button 
-            v-for="period in ['24ч', '7д', '30д']" 
-            :key="period"
-            @click="setChartPeriod(period)"
-            :class="[
-              'px-2 py-1 text-sm rounded',
-              selectedPeriod === period ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'
-            ]"
-          >
-            {{ period }}
-          </button>
-        </div>
-        
-        <TemperatureChart 
-          :deviceId="deviceId"
-          color="#3B82F6"
-          :updateInterval="5000"
-        />
-      </div>
-
-      <div class="mt-4 border-t pt-4">
-        <h4 class="text-gray-700 font-medium mb-3">Информация о температуре</h4>
-        <div class="flex items-start gap-3 p-3 bg-blue-50 rounded-lg mb-3">
-          <i class="fas fa-check-circle text-blue-500 mt-1"></i>
-          <div>
-            <p class="text-blue-700 font-medium">{{ temperatureStatus.title }}</p>
-            <p class="text-sm text-blue-600">{{ temperatureStatus.detailedMessage }}</p>
-          </div>
-        </div>
-        
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <p class="text-sm text-gray-500">
-              <i class="fas fa-bullseye text-blue-500 mr-1"></i>
-              Оптимальный уровень
-            </p>
-            <p class="font-medium">20-24°C</p>
-            <p class="text-xs text-gray-500">Комфортный для человека</p>
-          </div>
-          <div>
-            <p class="text-sm text-gray-500">
-              <i class="fas fa-exchange-alt text-blue-500 mr-1"></i>
-              Изменение
-            </p>
-            <p class="font-medium" :class="temperatureDelta >= 0 ? 'text-red-500' : 'text-blue-500'">
-              {{ temperatureDelta >= 0 ? '+' : '' }}{{ temperatureDelta }}°C
-            </p>
-            <p class="text-xs text-gray-500">За последние 24 часа</p>
-          </div>
-        </div>
-        
-        <div class="grid grid-cols-2 gap-4 mt-4">
-          <div>
-            <p class="text-sm text-gray-500">
-              <i class="fas fa-snowflake text-blue-500 mr-1"></i>
-              Влияние на комфорт
-            </p>
-            <p class="font-medium">Нормально</p>
-            <p class="text-xs text-gray-500">Температура в норме</p>
-          </div>
-          <div>
-            <p class="text-sm text-gray-500">
-              <i class="fas fa-calculator text-blue-500 mr-1"></i>
-              Средняя температура
-            </p>
-            <p class="font-medium">22.5°C</p>
-            <p class="text-xs text-gray-500">За неделю</p>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -165,13 +81,9 @@
 import { useDeviceStore } from '@/store/deviceStore'
 import { formatDistanceToNow } from 'date-fns'
 import { ru } from 'date-fns/locale'
-import TemperatureChart from '@/components/devices/TemperatureChart.vue'
 
 export default {
   name: 'TemperatureWidget',
-  components: {
-    TemperatureChart
-  },
   props: {
     deviceId: {
       type: String,
@@ -180,8 +92,7 @@ export default {
   },
   data() {
     return {
-      isEnabled: true,
-      showDetails: false,
+      isEnabled: false,
       circumference: 2 * Math.PI * 54,
       selectedPeriod: '24ч',
       temperatureDelta: -0.5,
@@ -237,13 +148,10 @@ export default {
   methods: {
     async toggleState() {
       try {
-        await useDeviceStore().updateDeviceProperty(
-          this.deviceId,
-          'enabled',
-          this.isEnabled
-        )
+        await useDeviceStore().toggleDevice(this.deviceId, this.isEnabled);
       } catch (error) {
-        console.error('Ошибка при обновлении состояния:', error)
+        console.error('Ошибка при обновлении состояния:', error);
+        this.isEnabled = !this.isEnabled;
       }
     },
     formatLastUpdated(timestamp) {
@@ -251,7 +159,7 @@ export default {
       return formatDistanceToNow(new Date(timestamp), { addSuffix: true, locale: ru })
     },
     refreshData() {
-      useDeviceStore().fetchDevice(this.deviceId)
+      useDeviceStore().fetchDevices()
     },
     setChartPeriod(period) {
       this.selectedPeriod = period
@@ -259,7 +167,7 @@ export default {
     startAutoUpdate() {
       this.stopAutoUpdate()
       this.updateInterval = setInterval(() => {
-        useDeviceStore().fetchDevice(this.deviceId)
+        useDeviceStore().fetchDevices()
       }, 5000)
     },
     stopAutoUpdate() {
@@ -271,6 +179,9 @@ export default {
   },
   mounted() {
     this.startAutoUpdate()
+    if (this.device) {
+      this.isEnabled = this.device.active;
+    }
   },
   beforeUnmount() {
     this.stopAutoUpdate()

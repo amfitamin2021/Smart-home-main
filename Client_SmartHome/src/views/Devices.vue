@@ -1,240 +1,224 @@
 <template>
-  <div class="p-4">
-    <div class="mb-4 flex justify-between items-center">
-      <h1 class="text-xl font-medium">Устройства</h1>
-    </div>
-    
-    <div class="flex gap-4 mb-4 flex-wrap md:flex-nowrap">
-      <div class="relative flex-grow max-w-md">
-        <span class="absolute inset-y-0 left-0 flex items-center pl-3">
-          <i class="fas fa-search text-gray-400"></i>
-        </span>
-        <input
-          type="text"
-          placeholder="Поиск устройств..."
-          class="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400"
-          v-model="searchQuery"
-        />
-      </div>
+  <div class="devices-container">
+    <!-- Поиск и фильтрация -->
+    <div class="filter-container">
+      <input 
+        type="text" 
+        v-model="searchQuery" 
+        placeholder="Поиск устройств..."
+        class="search-input"
+      />
       
-      <div class="flex-grow-0">
-        <select 
-          class="w-full px-4 py-2 rounded-lg border border-gray-200 appearance-none bg-white"
-          v-model="selectedRoom"
-        >
-          <option value="all">Все комнаты</option>
-          <option 
-            v-for="room in rooms" 
-            :key="room.id"
-            :value="room.id"
-          >
-            {{ room.name }}
-          </option>
-        </select>
-      </div>
+      <select v-model="selectedRoom" class="room-select">
+        <option value="all">Все комнаты</option>
+        <option v-for="room in rooms" :key="room.id" :value="room.id">
+          {{ room.name }}
+        </option>
+      </select>
       
-      <button 
-        class="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center"
-        @click="openAddDeviceModal"
-      >
-        <i class="fas fa-plus mr-2"></i> Добавить устройство
+      <button @click="openAddDeviceModal" class="add-device-btn">
+        <i class="fas fa-plus"></i> Добавить устройство
       </button>
     </div>
-
-    <div v-if="loading" class="flex justify-center my-8">
-      <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+    
+    <!-- Индикатор загрузки и сообщение об ошибке -->
+    <div v-if="loading" class="loading-container">
+      <div class="spinner"></div>
+      <p>Загрузка устройств...</p>
     </div>
-
-    <div v-else-if="error" class="bg-red-50 text-red-600 p-4 rounded-lg">
-      {{ error }}
+    
+    <div v-else-if="error" class="error-container">
+      <p>{{ error }}</p>
+      <button @click="refreshDevices" class="retry-btn">
+        <i class="fas fa-sync-alt"></i> Повторить
+      </button>
     </div>
-
-    <div v-else>
-      <!-- Список устройств -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div v-for="device in filteredDevices" :key="device.id" class="bg-white rounded-lg shadow-sm p-4">
-          <div class="text-sm text-gray-500 mb-1">{{ device.room || 'Неизвестное место' }}</div>
-          <div class="flex items-center justify-between">
-            <div class="flex items-center">
-              <!-- Иконка в зависимости от типа устройства -->
-              <i :class="getDeviceIcon(device.type)" class="mr-2"></i>
-              <h3 class="font-medium">{{ device.name }}</h3>
-            </div>
-            <div v-if="!device.online" class="text-xs px-2 py-1 bg-red-100 text-red-500 rounded-full">
-              Офлайн
-            </div>
+    
+    <!-- Список устройств -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div v-for="device in filteredDevices" :key="device.id" class="bg-white rounded-lg shadow-sm p-4">
+        <div class="text-sm text-gray-500 mb-1">{{ device.room || 'Неизвестное место' }}</div>
+        <div class="flex items-center justify-between">
+          <div class="flex items-center">
+            <!-- Иконка в зависимости от типа устройства -->
+            <i :class="getDeviceIcon(device.type)" class="mr-2"></i>
+            <h3 class="font-medium">{{ device.name }}</h3>
           </div>
+          <div v-if="!device.online" class="text-xs px-2 py-1 bg-red-100 text-red-500 rounded-full">
+            Офлайн
+          </div>
+        </div>
 
-          <!-- Содержимое в зависимости от типа устройства -->
-          <div class="mt-3">
-            <!-- TV -->
-            <template v-if="device.type === 'tv' || (device.category === 'APPLIANCES' && device.subType === 'TV')">
-              <div class="flex flex-col">
-                <!-- Статус включения -->
-                <div class="flex items-center justify-between mb-3">
-                  <div class="text-gray-700">Состояние</div>
-                  <div class="flex items-center">
-                    <label class="toggle-switch">
-                      <input
-                        type="checkbox"
-                        :checked="device.active"
-                        @change="toggleTV(device)"
-                      />
-                      <span class="toggle-slider"></span>
-                    </label>
+        <!-- Содержимое в зависимости от типа устройства -->
+        <div class="mt-3">
+          <!-- TV -->
+          <template v-if="device.type === 'tv' || (device.category === 'APPLIANCES' && device.subType === 'TV')">
+            <div class="flex flex-col">
+              <!-- Статус включения -->
+              <div class="flex items-center justify-between mb-3">
+                <div class="text-gray-700">Состояние</div>
+                <div class="flex items-center">
+                  <label class="toggle-switch">
+                    <input
+                      type="checkbox"
+                      :checked="device.active"
+                      @change="toggleTV(device)"
+                    />
+                    <span class="toggle-slider"></span>
+              </label>
+            </div>
+              </div>
+              
+              <!-- Телевизор, отображение -->
+              <div class="bg-white rounded-lg border border-gray-200 p-3 relative">
+                <!-- Визуализация ТВ -->
+                <div class="bg-gray-800 rounded-lg p-2 text-center mb-4" 
+                     :class="{ 'opacity-30': !device.active || !device.online }">
+                  <div class="py-8 flex items-center justify-center">
+                    <i class="fas fa-tv text-5xl text-gray-400"></i>
+                  </div>
+                  <div class="mt-2 text-xs text-gray-400">
+                    {{ getTVStatus(device) }}
                   </div>
                 </div>
                 
-                <!-- Телевизор, отображение -->
-                <div class="bg-white rounded-lg border border-gray-200 p-3 relative">
-                  <!-- Визуализация ТВ -->
-                  <div class="bg-gray-800 rounded-lg p-2 text-center mb-4" 
-                       :class="{ 'opacity-30': !device.active || !device.online }">
-                    <div class="py-8 flex items-center justify-center">
-                      <i class="fas fa-tv text-5xl text-gray-400"></i>
+                <!-- Элементы управления -->
+                <div :class="{ 'opacity-50 pointer-events-none': !device.active }">
+                  <!-- Каналы -->
+                  <div class="mb-4">
+                    <div class="flex items-center justify-between mb-2">
+                      <div class="text-gray-600 text-sm">Канал</div>
+                      <div class="text-gray-800 font-medium">{{ device.rawProperties?.tb_channel || '1' }}</div>
                     </div>
-                    <div class="mt-2 text-xs text-gray-400">
-                      {{ getTVStatus(device) }}
-                    </div>
-                  </div>
-                  
-                  <!-- Элементы управления -->
-                  <div :class="{ 'opacity-50 pointer-events-none': !device.active }">
-                    <!-- Каналы -->
-                    <div class="mb-4">
-                      <div class="flex items-center justify-between mb-2">
-                        <div class="text-gray-600 text-sm">Канал</div>
-                        <div class="text-gray-800 font-medium">{{ device.rawProperties?.tb_channel || '1' }}</div>
-                      </div>
-                      <div class="flex gap-2">
-                        <button 
-                          class="bg-blue-50 text-blue-600 hover:bg-blue-100 p-2 rounded-lg flex-1"
-                          @click="changeChannel(device, -1)"
-                          :disabled="!device.active"
-                        >
-                          <i class="fas fa-chevron-left"></i>
-                        </button>
-                        <button 
-                          class="bg-blue-50 text-blue-600 hover:bg-blue-100 p-2 rounded-lg flex-1"
-                          @click="changeChannel(device, 1)"
-                          :disabled="!device.active"
-                        >
-                          <i class="fas fa-chevron-right"></i>
-                        </button>
-                      </div>
-                    </div>
-                    
-                    <!-- Быстрый выбор канала -->
-                    <div class="mb-4">
-                      <div class="text-gray-600 text-sm mb-2">Каналы</div>
-                      <div class="flex flex-wrap gap-2">
-                        <button 
-                          v-for="channel in 10" 
-                          :key="channel"
-                          class="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
-                          :class="{ 'bg-blue-100 text-blue-600': device.rawProperties?.tb_channel === channel.toString() }"
-                          @click="setChannel(device, channel)"
-                          :disabled="!device.active"
-                        >
-                          {{ channel }}
-                        </button>
-                      </div>
-                    </div>
-                    
-                    <!-- Громкость -->
-                    <div class="mb-4">
-                      <div class="flex items-center justify-between mb-2">
-                        <div class="text-gray-600 text-sm">Громкость</div>
-                        <div class="text-gray-800 font-medium">{{ device.rawProperties?.tb_volume || '50' }}</div>
-                      </div>
-                      <input 
-                        type="range" 
-                        min="0" 
-                        max="100" 
-                        :value="device.rawProperties?.tb_volume || 50"
-                        @input="updateLocalVolume(device, $event)"
-                        @change="changeVolume(device, $event)"
-                        class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                    <div class="flex gap-2">
+                      <button 
+                        class="bg-blue-50 text-blue-600 hover:bg-blue-100 p-2 rounded-lg flex-1"
+                        @click="changeChannel(device, -1)"
                         :disabled="!device.active"
                       >
-                    </div>
-                    
-                    <!-- Источник сигнала -->
-                    <div class="mb-4">
-                      <div class="text-gray-600 text-sm mb-2">Источник сигнала</div>
-                      <div class="grid grid-cols-3 gap-2">
-                        <button 
-                          v-for="source in inputSources" 
-                          :key="source.value"
-                          class="py-1 px-2 rounded-md text-xs text-center"
-                          :class="(device.rawProperties?.tb_input_source === source.value) ? 
-                            'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
-                          @click="changeInputSource(device, source.value)"
-                          :disabled="!device.active"
-                        >
-                          {{ source.label }}
-                        </button>
-                      </div>
+                        <i class="fas fa-chevron-left"></i>
+                      </button>
+                      <button 
+                        class="bg-blue-50 text-blue-600 hover:bg-blue-100 p-2 rounded-lg flex-1"
+                        @click="changeChannel(device, 1)"
+                        :disabled="!device.active"
+                      >
+                        <i class="fas fa-chevron-right"></i>
+                      </button>
                     </div>
                   </div>
-                </div>
-              </div>
-            </template>
-
-            <!-- Кондиционер -->
-            <template v-else-if="device.type === 'aircon'">
-              <div class="text-2xl font-bold">{{ device.temperature }}°C</div>
-              <div class="flex items-center gap-2 mt-2">
-                <button class="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center" @click="decreaseTemperature(device)">
-                  <i class="fas fa-minus text-blue-500"></i>
-                </button>
-                <button class="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center" @click="increaseTemperature(device)">
-                  <i class="fas fa-plus text-blue-500"></i>
-                </button>
-              </div>
-              <div class="mt-2 text-sm text-gray-500">
-                Режим: {{ getModeText(device.mode) }}
-              </div>
-            </template>
-
-            <!-- Умная лампа -->
-            <template v-else-if="device.type === 'light' || (device.category === 'LIGHTING' && device.subType === 'SMART_BULB')">
-              <div class="flex flex-col">
-                <!-- Статус включения -->
-                <div class="flex items-center justify-between mb-3">
-                  <div class="text-gray-700">Состояние</div>
-                  <div class="flex items-center">
-                    <div v-if="!device.online" class="text-xs text-gray-500 mr-2">
-                      {{ device.isVirtual ? 'Виртуальное устройство' : 'Офлайн' }}
-                    </div>
-                    <label class="toggle-switch" :class="{ 'cursor-not-allowed': !device.canControl }">
-                      <input
-                        type="checkbox"
-                        :checked="device.active"
-                        @change="handleToggleLight(device, $event)"
-                        :disabled="!device.canControl"
-                      />
-                      <span class="toggle-slider"></span>
-                    </label>
-                  </div>
-                </div>
-                
-                <!-- Визуализация лампы -->
-                <LightVisualization 
-                  :active="device.active"
-                  :brightness="device.brightness"
-                  :color="device.color"
-                />
-                
-                <!-- Регулятор яркости -->
-                <div class="mt-4">
-              <div class="flex items-center justify-between mb-2">
-                    <div class="text-gray-600 text-sm">Яркость</div>
-                    <div class="flex items-center">
-                      <div class="text-gray-800 font-medium">{{ device.brightness }}%</div>
-                    </div>
-              </div>
                   
+                  <!-- Быстрый выбор канала -->
+                  <div class="mb-4">
+                    <div class="text-gray-600 text-sm mb-2">Каналы</div>
+                    <div class="flex flex-wrap gap-2">
+                      <button 
+                        v-for="channel in 10" 
+                        :key="channel"
+                        class="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
+                        :class="{ 'bg-blue-100 text-blue-600': device.rawProperties?.tb_channel === channel.toString() }"
+                        @click="setChannel(device, channel)"
+                        :disabled="!device.active"
+                      >
+                        {{ channel }}
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <!-- Громкость -->
+                  <div class="mb-4">
+                    <div class="flex items-center justify-between mb-2">
+                      <div class="text-gray-600 text-sm">Громкость</div>
+                      <div class="text-gray-800 font-medium">{{ device.rawProperties?.tb_volume || '50' }}</div>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="100" 
+                      :value="device.rawProperties?.tb_volume || 50"
+                      @input="updateLocalVolume(device, $event)"
+                      @change="changeVolume(device, $event)"
+                      class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                      :disabled="!device.active"
+                    >
+                  </div>
+                  
+                  <!-- Источник сигнала -->
+                  <div class="mb-4">
+                    <div class="text-gray-600 text-sm mb-2">Источник сигнала</div>
+                    <div class="grid grid-cols-3 gap-2">
+                      <button 
+                        v-for="source in inputSources" 
+                        :key="source.value"
+                        class="py-1 px-2 rounded-md text-xs text-center"
+                        :class="(device.rawProperties?.tb_input_source === source.value) ? 
+                          'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                        @click="changeInputSource(device, source.value)"
+                        :disabled="!device.active"
+                      >
+                        {{ source.label }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- Кондиционер -->
+          <template v-else-if="device.type === 'aircon'">
+            <div class="text-2xl font-bold">{{ device.temperature }}°C</div>
+            <div class="flex items-center gap-2 mt-2">
+              <button class="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center" @click="decreaseTemperature(device)">
+                <i class="fas fa-minus text-blue-500"></i>
+              </button>
+              <button class="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center" @click="increaseTemperature(device)">
+                <i class="fas fa-plus text-blue-500"></i>
+              </button>
+            </div>
+            <div class="mt-2 text-sm text-gray-500">
+              Режим: {{ getModeText(device.mode) }}
+            </div>
+          </template>
+
+          <!-- Умная лампа -->
+          <template v-else-if="device.type === 'light' || (device.category === 'LIGHTING' && device.subType === 'SMART_BULB')">
+            <div class="flex flex-col">
+              <!-- Статус включения -->
+              <div class="flex items-center justify-between mb-3">
+                <div class="text-gray-700">Состояние</div>
+                <div class="flex items-center">
+                  <div v-if="!device.online" class="text-xs text-gray-500 mr-2">
+                    {{ device.isVirtual ? 'Виртуальное устройство' : 'Офлайн' }}
+                  </div>
+                  <label class="toggle-switch" :class="{ 'cursor-not-allowed': !device.canControl }">
+                    <input
+                      type="checkbox"
+                      :checked="device.active"
+                      @change="handleToggleLight(device, $event)"
+                      :disabled="!device.canControl"
+                    />
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+              </div>
+              
+              <!-- Визуализация лампы -->
+              <LightVisualization 
+                :active="device.active"
+                :brightness="device.brightness"
+                :color="device.color"
+              />
+              
+              <!-- Регулятор яркости -->
+              <div class="mt-4">
+            <div class="flex items-center justify-between mb-2">
+                  <div class="text-gray-600 text-sm">Яркость</div>
+                  <div class="flex items-center">
+                    <div class="text-gray-800 font-medium">{{ device.brightness }}%</div>
+                  </div>
+            </div>
+                
               <input 
                 type="range" 
                 min="0" 
@@ -245,451 +229,450 @@
                     :disabled="!device.canControl"
                   >
                 </div>
+              
+              <!-- Выбор цвета -->
+              <div class="mt-4">
+                <div class="flex items-center justify-between mb-2">
+                  <div class="text-gray-600 text-sm">Цвет</div>
+                  <ColorPicker 
+                    :value="device.color"
+                    @input="color => handleColorPickerChange(device, color)"
+                    :disabled="!device.canControl"
+                  />
+                </div>
                 
-                <!-- Выбор цвета -->
-                <div class="mt-4">
-                  <div class="flex items-center justify-between mb-2">
-                    <div class="text-gray-600 text-sm">Цвет</div>
-                    <ColorPicker 
-                      :value="device.color"
-                      @input="color => handleColorPickerChange(device, color)"
+                <div class="flex flex-wrap gap-2 mt-2">
+                  <div v-for="color in predefinedColors" :key="color" class="color-square">
+                    <button 
+                      class="w-6 h-6 rounded-full border border-gray-200" 
+                      :style="{ backgroundColor: color }"
+                      :class="{ 'ring-2 ring-blue-500 scale-110': device.color === color }"
+                      @click="handleColorPickerChange(device, color)"
+                      :disabled="!device.canControl"
+                    ></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- Датчик температуры или термостат -->
+          <template v-else-if="device.type === 'thermostat' || (device.category === 'CLIMATE' && ['THERMOSTAT', 'TEMPERATURE_SENSOR'].includes(device.subType))">
+            <div class="flex flex-col">
+              <!-- Статус включения -->
+              <div class="flex items-center justify-between mb-3">
+                <div class="text-gray-700">Состояние</div>
+                <div class="flex items-center">
+                  <div v-if="!device.online" class="text-xs text-gray-500 mr-2">
+                    {{ device.isVirtual ? 'Виртуальное устройство' : 'Офлайн' }}
+                  </div>
+                  <label class="toggle-switch" :class="{ 'cursor-not-allowed': !device.canControl }">
+                    <input
+                      type="checkbox"
+                      :checked="device.active"
+                      @change="toggleDevice(device)"
                       :disabled="!device.canControl"
                     />
-                  </div>
-                  
-                  <div class="flex flex-wrap gap-2 mt-2">
-                    <div v-for="color in predefinedColors" :key="color" class="color-square">
-                      <button 
-                        class="w-6 h-6 rounded-full border border-gray-200" 
-                        :style="{ backgroundColor: color }"
-                        :class="{ 'ring-2 ring-blue-500 scale-110': device.color === color }"
-                        @click="handleColorPickerChange(device, color)"
-                        :disabled="!device.canControl"
-                      ></button>
-                    </div>
-                  </div>
+                    <span class="toggle-slider"></span>
+                  </label>
                 </div>
               </div>
-            </template>
-
-            <!-- Датчик температуры или термостат -->
-            <template v-else-if="device.type === 'thermostat' || (device.category === 'CLIMATE' && ['THERMOSTAT', 'TEMPERATURE_SENSOR'].includes(device.subType))">
-              <div class="flex flex-col">
-                <!-- Статус включения -->
-                <div class="flex items-center justify-between mb-3">
-                  <div class="text-gray-700">Состояние</div>
-                  <div class="flex items-center">
-                    <div v-if="!device.online" class="text-xs text-gray-500 mr-2">
-                      {{ device.isVirtual ? 'Виртуальное устройство' : 'Офлайн' }}
-                    </div>
-                    <label class="toggle-switch" :class="{ 'cursor-not-allowed': !device.canControl }">
-                      <input
-                        type="checkbox"
-                        :checked="device.active"
-                        @change="toggleDevice(device)"
-                        :disabled="!device.canControl"
+              
+              <!-- Компактное отображение датчика температуры -->
+              <div class="bg-white rounded-lg shadow-sm p-3 relative">
+                <!-- Индикатор обновления данных -->
+                <div v-if="isUpdating" class="absolute top-0 right-0 m-2">
+                  <div class="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500"></div>
+                </div>
+                <!-- Основная информация с датчиком температуры -->
+                <div class="flex items-start gap-3">
+                  <!-- Круговой индикатор -->
+                  <div class="relative w-24 h-24">
+                    <svg class="w-full h-full" viewBox="0 0 120 120">
+                      <circle
+                        class="text-gray-100"
+                        stroke-width="12"
+                        stroke="currentColor"
+                        fill="transparent"
+                        r="54"
+                        cx="60"
+                        cy="60"
                       />
-                      <span class="toggle-slider"></span>
-                    </label>
+                      <circle
+                        class="text-blue-600"
+                        stroke-width="12"
+                        :stroke-dasharray="2 * Math.PI * 54"
+                        :stroke-dashoffset="getTemperatureDashOffset(device.rawProperties?.tb_temperature)"
+                        stroke-linecap="round"
+                        stroke="currentColor"
+                        fill="transparent"
+                        r="54"
+                        cx="60"
+                        cy="60"
+                        transform="rotate(-90, 60, 60)"
+                      />
+                      <circle cx="60" cy="60" r="40" fill="white" />
+                      <text x="60" y="52" dominant-baseline="middle" text-anchor="middle" style="font-size: 24px">🌡️</text>
+                      <text x="60" y="75" dominant-baseline="middle" text-anchor="middle" :fill="getTemperatureColor(device.rawProperties?.tb_temperature)" style="font-size: 16px; font-weight: bold">
+                        {{ device.rawProperties?.tb_temperature || '--' }}°C
+                      </text>
+                    </svg>
+                  </div>
+                  
+                  <!-- Информация и статус -->
+                  <div class="flex-grow">
+                    <!-- Основная информация -->
+                    <div class="flex flex-col">
+                      <div class="font-medium text-sm mb-1">{{ getTemperatureLevelText(device.rawProperties?.tb_temperature) }}</div>
+                      <div class="text-xs text-gray-500 mb-2">
+                        {{ getTemperatureRecommendation(device.rawProperties?.tb_temperature) }}
+                      </div>
+                    </div>
+                    
+                    <!-- Батарея -->
+                    <div class="flex items-center justify-between mt-1">
+                      <div class="text-xs text-gray-500">Заряд:</div>
+                      <div class="flex items-center">
+                        <span 
+                          class="text-xs font-medium py-1 px-2 rounded-full flex items-center gap-1"
+                          :class="{
+                            'bg-red-100 text-red-600': (device.rawProperties?.tb_battery < 20),
+                            'bg-yellow-100 text-yellow-600': (device.rawProperties?.tb_battery >= 20 && device.rawProperties?.tb_battery < 50),
+                            'bg-green-100 text-green-600': (device.rawProperties?.tb_battery >= 50)
+                          }"
+                        >
+                          <i class="fas fa-battery-three-quarters text-xs mr-1"></i>
+                          {{ device.rawProperties?.tb_battery || '--' }}%
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <!-- Обновление -->
+                    <div class="flex items-center justify-between mt-1">
+                      <div class="text-xs text-gray-500">Обновлено:</div>
+                      <div class="flex items-center">
+                        <span class="text-xs">{{ formatDate(device.rawProperties?.tb_last_updated) }}</span>
+                        <button 
+                          @click="refreshDevices" 
+                          class="ml-2 text-blue-500 hover:text-blue-600 transition-colors"
+                          :disabled="isUpdating"
+                          :class="{ 'opacity-50 cursor-not-allowed': isUpdating }"
+                          title="Обновить данные"
+                        >
+                          <i class="fas fa-sync-alt text-xs" :class="{ 'animate-spin': isUpdating }"></i>
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <!-- Кнопка для отображения подробной информации -->
+                    <button 
+                      @click="toggleDetails(device.id)" 
+                      class="w-full mt-2 text-xs py-1 px-2 text-blue-600 bg-blue-50 rounded flex items-center justify-center hover:bg-blue-100 transition-colors"
+                    >
+                      <i :class="shouldShowDetails(device.id) ? 'fas fa-chevron-up' : 'fas fa-chevron-down'" class="mr-1"></i>
+                      {{ shouldShowDetails(device.id) ? 'Скрыть детали' : 'Показать детали' }}
+                    </button>
                   </div>
                 </div>
                 
-                <!-- Компактное отображение датчика температуры -->
-                <div class="bg-white rounded-lg shadow-sm p-3 relative">
-                  <!-- Индикатор обновления данных -->
-                  <div v-if="isUpdating" class="absolute top-0 right-0 m-2">
-                    <div class="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500"></div>
-                  </div>
-                  <!-- Основная информация с датчиком температуры -->
-                  <div class="flex items-start gap-3">
-                    <!-- Круговой индикатор -->
-                    <div class="relative w-24 h-24">
-                      <svg class="w-full h-full" viewBox="0 0 120 120">
-                        <circle
-                          class="text-gray-100"
-                          stroke-width="12"
-                          stroke="currentColor"
-                          fill="transparent"
-                          r="54"
-                          cx="60"
-                          cy="60"
-                        />
-                        <circle
-                          class="text-blue-600"
-                          stroke-width="12"
-                          :stroke-dasharray="2 * Math.PI * 54"
-                          :stroke-dashoffset="getTemperatureDashOffset(device.rawProperties?.tb_temperature)"
-                          stroke-linecap="round"
-                          stroke="currentColor"
-                          fill="transparent"
-                          r="54"
-                          cx="60"
-                          cy="60"
-                          transform="rotate(-90, 60, 60)"
-                        />
-                        <circle cx="60" cy="60" r="40" fill="white" />
-                        <text x="60" y="52" dominant-baseline="middle" text-anchor="middle" style="font-size: 24px">🌡️</text>
-                        <text x="60" y="75" dominant-baseline="middle" text-anchor="middle" :fill="getTemperatureColor(device.rawProperties?.tb_temperature)" style="font-size: 16px; font-weight: bold">
-                          {{ device.rawProperties?.tb_temperature || '--' }}°C
-                        </text>
-                      </svg>
-                    </div>
-                    
-                    <!-- Информация и статус -->
-                    <div class="flex-grow">
-                      <!-- Основная информация -->
-                      <div class="flex flex-col">
-                        <div class="font-medium text-sm mb-1">{{ getTemperatureLevelText(device.rawProperties?.tb_temperature) }}</div>
-                        <div class="text-xs text-gray-500 mb-2">
-                          {{ getTemperatureRecommendation(device.rawProperties?.tb_temperature) }}
-                        </div>
-                      </div>
-                      
-                      <!-- Батарея -->
-                      <div class="flex items-center justify-between mt-1">
-                        <div class="text-xs text-gray-500">Заряд:</div>
-                        <div class="flex items-center">
-                          <span 
-                            class="text-xs font-medium py-1 px-2 rounded-full flex items-center gap-1"
-                            :class="{
-                              'bg-red-100 text-red-600': (device.rawProperties?.tb_battery < 20),
-                              'bg-yellow-100 text-yellow-600': (device.rawProperties?.tb_battery >= 20 && device.rawProperties?.tb_battery < 50),
-                              'bg-green-100 text-green-600': (device.rawProperties?.tb_battery >= 50)
-                            }"
-                          >
-                            <i class="fas fa-battery-three-quarters text-xs mr-1"></i>
-                            {{ device.rawProperties?.tb_battery || '--' }}%
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <!-- Обновление -->
-                      <div class="flex items-center justify-between mt-1">
-                        <div class="text-xs text-gray-500">Обновлено:</div>
-                        <div class="flex items-center">
-                          <span class="text-xs">{{ formatDate(device.rawProperties?.tb_last_updated) }}</span>
-                          <button 
-                            @click="refreshDevices" 
-                            class="ml-2 text-blue-500 hover:text-blue-600 transition-colors"
-                            :disabled="isUpdating"
-                            :class="{ 'opacity-50 cursor-not-allowed': isUpdating }"
-                            title="Обновить данные"
-                          >
-                            <i class="fas fa-sync-alt text-xs" :class="{ 'animate-spin': isUpdating }"></i>
-                          </button>
-                        </div>
-                      </div>
-                      
-                      <!-- Кнопка для отображения подробной информации -->
-                      <button 
-                        @click="toggleDetails(device.id)" 
-                        class="w-full mt-2 text-xs py-1 px-2 text-blue-600 bg-blue-50 rounded flex items-center justify-center hover:bg-blue-100 transition-colors"
-                      >
-                        <i :class="shouldShowDetails(device.id) ? 'fas fa-chevron-up' : 'fas fa-chevron-down'" class="mr-1"></i>
-                        {{ shouldShowDetails(device.id) ? 'Скрыть детали' : 'Показать детали' }}
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <!-- Развернутая информация (показывается только при клике) -->
-                  <div v-if="shouldShowDetails(device.id)" class="mt-3 border-t border-gray-100 pt-3">
-                    <!-- График температуры -->
-                    <div class="mb-4">
-                      <div class="flex items-center justify-between mb-2">
-                        <div class="flex gap-1">
-                          <button 
-                            v-for="period in ['24ч', '7д', '30д']" 
-                            :key="period"
-                            @click="setPeriod(device.id, period)"
-                            :class="[
-                              'px-2 py-0.5 text-xs rounded',
-                              getPeriod(device.id) === period ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'
-                            ]"
-                          >
-                            {{ period }}
-                          </button>
-                        </div>
-                      </div>
-                      
-                      <TemperatureChart 
-                        :device-id="device.id"
-                        :color="getTemperatureColor(device.rawProperties?.tb_temperature)" 
-                        :update-interval="30000"
-                      />
-                    </div>
-                    
-                    <!-- Информация о температуре -->
-                    <div class="mb-4">
-                      <h4 class="text-sm font-medium mb-2">Информация о температуре</h4>
-                      
-                      <div class="flex items-start gap-3 p-3 bg-blue-50 rounded-lg mb-3">
-                        <i class="fas fa-info-circle text-blue-500 mt-1"></i>
-                        <div>
-                          <p class="text-blue-700 text-sm font-medium">{{ getTemperatureTitle(device.rawProperties?.tb_temperature) }}</p>
-                          <p class="text-xs text-blue-600">{{ getTemperatureDetailedMessage(device.rawProperties?.tb_temperature) }}</p>
-                        </div>
-                      </div>
-                      
-                      <div class="grid grid-cols-2 gap-3 text-sm">
-                        <div>
-                          <p class="text-xs text-gray-500 flex items-center">
-                            <i class="fas fa-bullseye text-blue-500 mr-1"></i>
-                            Оптимальный уровень
-                          </p>
-                          <p class="font-medium">20-24°C</p>
-                          <p class="text-xs text-gray-500">Комфортный для человека</p>
-                        </div>
-                        <div>
-                          <p class="text-xs text-gray-500 flex items-center">
-                            <i class="fas fa-exchange-alt text-blue-500 mr-1"></i>
-                            Изменение
-                          </p>
-                          <p class="font-medium text-blue-500">-0.5°C</p>
-                          <p class="text-xs text-gray-500">За последние 24 часа</p>
-                        </div>
+                <!-- Развернутая информация (показывается только при клике) -->
+                <div v-if="shouldShowDetails(device.id)" class="mt-3 border-t border-gray-100 pt-3">
+                  <!-- График температуры -->
+                  <div class="mb-4">
+                    <div class="flex items-center justify-between mb-2">
+                      <div class="flex gap-1">
+                        <button 
+                          v-for="period in ['24ч', '7д', '30д']" 
+                          :key="period"
+                          @click="setPeriod(device.id, period)"
+                          :class="[
+                            'px-2 py-0.5 text-xs rounded',
+                            getPeriod(device.id) === period ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'
+                          ]"
+                        >
+                          {{ period }}
+                        </button>
                       </div>
                     </div>
                     
-                    <!-- Кнопки действий -->
-                    <div class="mt-3 flex gap-2">
-                      <button 
-                        class="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded flex-grow flex items-center justify-center hover:bg-blue-100 transition-colors"
-                      >
-                        <i class="fas fa-link mr-1"></i>
-                        Автоматизация
-                      </button>
-                      <button 
-                        class="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded flex-grow flex items-center justify-center hover:bg-blue-100 transition-colors"
-                      >
-                        <i class="fas fa-bell mr-1"></i>
-                        Уведомления
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </template>
-
-            <!-- Датчик влажности -->
-            <template v-else-if="device.category === 'CLIMATE' && device.subType === 'HUMIDITY_SENSOR'">
-              <div class="flex flex-col">
-                <!-- Статус включения -->
-                <div class="flex items-center justify-between mb-3">
-                  <div class="text-gray-700">Состояние</div>
-                  <div class="flex items-center">
-                    <div v-if="!device.online" class="text-xs text-gray-500 mr-2">
-                      {{ device.isVirtual ? 'Виртуальное устройство' : 'Офлайн' }}
-                    </div>
-                    <label class="toggle-switch" :class="{ 'cursor-not-allowed': !device.canControl }">
-                      <input
-                        type="checkbox"
-                        :checked="device.active"
-                        @change="toggleDevice(device)"
-                        :disabled="!device.canControl"
-                      />
-                      <span class="toggle-slider"></span>
-                    </label>
-                  </div>
-                </div>
-                
-                <!-- Компактное отображение датчика влажности -->
-                <div class="bg-white rounded-lg shadow-sm p-3 relative">
-                  <!-- Индикатор обновления данных -->
-                  <div v-if="isUpdating" class="absolute top-0 right-0 m-2">
-                    <div class="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500"></div>
-                  </div>
-                  <!-- Основная информация с датчиком влажности -->
-                  <div class="flex items-start gap-3">
-                    <!-- Круговой индикатор влажности -->
-                    <HumidityGauge
-                      :value="device.rawProperties?.tb_humidity || 0"
-                      :loading="device.rawProperties?.tb_loading || false"
-                      :size="100"
-                      label="Влажность"
-                    />
-                    
-                    <!-- Информация и статус -->
-                    <div class="flex-grow">
-                      <!-- Основная информация -->
-                      <div class="flex flex-col">
-                        <div class="font-medium text-sm mb-1">{{ getHumidityLevelText(device.rawProperties?.tb_humidity) }}</div>
-                        <div class="text-xs text-gray-500 mb-2">
-                          {{ getHumidityRecommendation(device.rawProperties?.tb_humidity) }}
-                        </div>
-                      </div>
-                      
-                      <!-- Батарея -->
-                      <div class="flex items-center justify-between mt-1">
-                        <div class="text-xs text-gray-500">Заряд:</div>
-                        <div class="flex items-center">
-                          <span 
-                            class="text-xs font-medium py-1 px-2 rounded-full flex items-center gap-1"
-                            :class="{
-                              'bg-red-100 text-red-600': (device.rawProperties?.tb_battery < 20),
-                              'bg-yellow-100 text-yellow-600': (device.rawProperties?.tb_battery >= 20 && device.rawProperties?.tb_battery < 50),
-                              'bg-green-100 text-green-600': (device.rawProperties?.tb_battery >= 50)
-                            }"
-                          >
-                            <i class="fas fa-battery-three-quarters text-xs mr-1"></i>
-                            {{ device.rawProperties?.tb_battery || '--' }}%
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <!-- Обновление -->
-                      <div class="flex items-center justify-between mt-1">
-                        <div class="text-xs text-gray-500">Обновлено:</div>
-                        <div class="flex items-center">
-                          <span class="text-xs">{{ formatDate(device.rawProperties?.tb_last_updated) }}</span>
-                          <button 
-                            @click="refreshDevices" 
-                            class="ml-2 text-blue-500 hover:text-blue-600 transition-colors"
-                            :disabled="isUpdating"
-                            :class="{ 'opacity-50 cursor-not-allowed': isUpdating }"
-                            title="Обновить данные"
-                          >
-                            <i class="fas fa-sync-alt text-xs" :class="{ 'animate-spin': isUpdating }"></i>
-                          </button>
-                        </div>
-                      </div>
-                      
-                      <!-- Кнопка для отображения подробной информации -->
-                      <button 
-                        @click="toggleDetails(device.id)" 
-                        class="w-full mt-2 text-xs py-1 px-2 text-blue-600 bg-blue-50 rounded flex items-center justify-center hover:bg-blue-100 transition-colors"
-                      >
-                        <i :class="shouldShowDetails(device.id) ? 'fas fa-chevron-up' : 'fas fa-chevron-down'" class="mr-1"></i>
-                        {{ shouldShowDetails(device.id) ? 'Скрыть детали' : 'Показать детали' }}
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <!-- Развернутая информация (показывается только при клике) -->
-                  <div v-if="shouldShowDetails(device.id)" class="mt-3 border-t border-gray-100 pt-3">
-                    <!-- График влажности -->
-                    <HumidityChart 
+                    <TemperatureChart 
                       :device-id="device.id"
-                      :color="getHumidityColor(device.rawProperties?.tb_humidity)" 
+                      :color="getTemperatureColor(device.rawProperties?.tb_temperature)" 
+                      :update-interval="30000"
                     />
+                  </div>
+                  
+                  <!-- Информация о температуре -->
+                  <div class="mb-4">
+                    <h4 class="text-sm font-medium mb-2">Информация о температуре</h4>
                     
-                    <!-- Подробная информация о влажности -->
-                    <HumidityInfo
-                      :humidity="device.rawProperties?.tb_humidity || 0"
-                      :temperature="device.rawProperties?.tb_temperature || 22"
-                      :trend="-2"
-                    />
-                    
-                    <!-- Кнопки действий -->
-                    <div class="mt-3 flex gap-2">
-                      <button 
-                        class="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded flex-grow flex items-center justify-center hover:bg-blue-100 transition-colors"
-                      >
-                        <i class="fas fa-link mr-1"></i>
-                        Автоматизация
-                      </button>
-                      <button 
-                        class="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded flex-grow flex items-center justify-center hover:bg-blue-100 transition-colors"
-                      >
-                        <i class="fas fa-bell mr-1"></i>
-                        Уведомления
-                      </button>
+                    <div class="flex items-start gap-3 p-3 bg-blue-50 rounded-lg mb-3">
+                      <i class="fas fa-info-circle text-blue-500 mt-1"></i>
+                      <div>
+                        <p class="text-blue-700 text-sm font-medium">{{ getTemperatureTitle(device.rawProperties?.tb_temperature) }}</p>
+                        <p class="text-xs text-blue-600">{{ getTemperatureDetailedMessage(device.rawProperties?.tb_temperature) }}</p>
+                      </div>
                     </div>
+                    
+                    <div class="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p class="text-xs text-gray-500 flex items-center">
+                          <i class="fas fa-bullseye text-blue-500 mr-1"></i>
+                          Оптимальный уровень
+                        </p>
+                        <p class="font-medium">20-24°C</p>
+                        <p class="text-xs text-gray-500">Комфортный для человека</p>
+                      </div>
+                      <div>
+                        <p class="text-xs text-gray-500 flex items-center">
+                          <i class="fas fa-exchange-alt text-blue-500 mr-1"></i>
+                          Изменение
+                        </p>
+                        <p class="font-medium text-blue-500">-0.5°C</p>
+                        <p class="text-xs text-gray-500">За последние 24 часа</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Кнопки действий -->
+                  <div class="mt-3 flex gap-2">
+                    <button 
+                      class="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded flex-grow flex items-center justify-center hover:bg-blue-100 transition-colors"
+                    >
+                      <i class="fas fa-link mr-1"></i>
+                      Автоматизация
+                    </button>
+                    <button 
+                      class="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded flex-grow flex items-center justify-center hover:bg-blue-100 transition-colors"
+                    >
+                      <i class="fas fa-bell mr-1"></i>
+                      Уведомления
+                    </button>
                   </div>
                 </div>
               </div>
-            </template>
+            </div>
+          </template>
 
-            <!-- Умный замок -->
-            <template v-else-if="device.type === 'lock' || (device.category === 'SECURITY' && device.subType === 'SMART_LOCK')">
-              <div 
-                class="p-2 rounded-md mb-3 text-center"
-                :class="device.rawProperties?.tb_locked === 'true' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'"
-              >
-                <i :class="device.rawProperties?.tb_locked === 'true' ? 'fas fa-check-circle' : 'fas fa-lock-open'" class="mr-1"></i>
-                {{ device.rawProperties?.tb_locked === 'true' ? 'Закрыто' : 'Открыто' }}
-              </div>
-              <div class="flex justify-center mt-3">
-                <button 
-                  class="px-4 py-2 rounded-md text-white"
-                  :class="device.rawProperties?.tb_locked === 'true' ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'"
-                  @click="toggleLock(device)"
-                  :disabled="!device.canControl"
-                >
-                  {{ device.rawProperties?.tb_locked === 'true' ? 'Открыть' : 'Закрыть' }}
-                </button>
-              </div>
-            </template>
-
-            <!-- Камера -->
-            <template v-else-if="device.type === 'camera' || (device.category === 'SECURITY' && device.subType === 'CAMERA')">
-              <div class="bg-gray-100 rounded-lg h-32 flex items-center justify-center">
-                <i class="fas fa-camera text-gray-400 text-3xl"></i>
-              </div>
-              <div class="mt-2 flex items-center justify-between">
-                <div class="text-sm text-gray-500">
-                  {{ device.rawProperties?.tb_recording === 'on' ? 'Запись включена' : 'Запись выключена' }}
+          <!-- Датчик влажности -->
+          <template v-else-if="device.category === 'CLIMATE' && device.subType === 'HUMIDITY_SENSOR'">
+            <div class="flex flex-col">
+              <!-- Статус включения -->
+              <div class="flex items-center justify-between mb-3">
+                <div class="text-gray-700">Состояние</div>
+                <div class="flex items-center">
+                  <div v-if="!device.online" class="text-xs text-gray-500 mr-2">
+                    {{ device.isVirtual ? 'Виртуальное устройство' : 'Офлайн' }}
+                  </div>
+                  <label class="toggle-switch" :class="{ 'cursor-not-allowed': !device.canControl }">
+                    <input
+                      type="checkbox"
+                      :checked="device.active"
+                      @change="toggleDevice(device)"
+                      :disabled="!device.canControl"
+                    />
+                    <span class="toggle-slider"></span>
+                  </label>
                 </div>
-                <button 
-                  class="text-blue-500 text-sm"
-                  @click="toggleRecording(device)"
+              </div>
+              
+              <!-- Компактное отображение датчика влажности -->
+              <div class="bg-white rounded-lg shadow-sm p-3 relative">
+                <!-- Индикатор обновления данных -->
+                <div v-if="isUpdating" class="absolute top-0 right-0 m-2">
+                  <div class="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500"></div>
+                </div>
+                <!-- Основная информация с датчиком влажности -->
+                <div class="flex items-start gap-3">
+                  <!-- Круговой индикатор влажности -->
+                  <HumidityGauge
+                    :value="device.rawProperties?.tb_humidity || 0"
+                    :loading="device.rawProperties?.tb_loading || false"
+                    :size="100"
+                    label="Влажность"
+                  />
+                  
+                  <!-- Информация и статус -->
+                  <div class="flex-grow">
+                    <!-- Основная информация -->
+                    <div class="flex flex-col">
+                      <div class="font-medium text-sm mb-1">{{ getHumidityLevelText(device.rawProperties?.tb_humidity) }}</div>
+                      <div class="text-xs text-gray-500 mb-2">
+                        {{ getHumidityRecommendation(device.rawProperties?.tb_humidity) }}
+                      </div>
+                    </div>
+                    
+                    <!-- Батарея -->
+                    <div class="flex items-center justify-between mt-1">
+                      <div class="text-xs text-gray-500">Заряд:</div>
+                      <div class="flex items-center">
+                        <span 
+                          class="text-xs font-medium py-1 px-2 rounded-full flex items-center gap-1"
+                          :class="{
+                            'bg-red-100 text-red-600': (device.rawProperties?.tb_battery < 20),
+                            'bg-yellow-100 text-yellow-600': (device.rawProperties?.tb_battery >= 20 && device.rawProperties?.tb_battery < 50),
+                            'bg-green-100 text-green-600': (device.rawProperties?.tb_battery >= 50)
+                          }"
+                        >
+                          <i class="fas fa-battery-three-quarters text-xs mr-1"></i>
+                          {{ device.rawProperties?.tb_battery || '--' }}%
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <!-- Обновление -->
+                    <div class="flex items-center justify-between mt-1">
+                      <div class="text-xs text-gray-500">Обновлено:</div>
+                      <div class="flex items-center">
+                        <span class="text-xs">{{ formatDate(device.rawProperties?.tb_last_updated) }}</span>
+                        <button 
+                          @click="refreshDevices" 
+                          class="ml-2 text-blue-500 hover:text-blue-600 transition-colors"
+                          :disabled="isUpdating"
+                          :class="{ 'opacity-50 cursor-not-allowed': isUpdating }"
+                          title="Обновить данные"
+                        >
+                          <i class="fas fa-sync-alt text-xs" :class="{ 'animate-spin': isUpdating }"></i>
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <!-- Кнопка для отображения подробной информации -->
+                    <button 
+                      @click="toggleDetails(device.id)" 
+                      class="w-full mt-2 text-xs py-1 px-2 text-blue-600 bg-blue-50 rounded flex items-center justify-center hover:bg-blue-100 transition-colors"
+                    >
+                      <i :class="shouldShowDetails(device.id) ? 'fas fa-chevron-up' : 'fas fa-chevron-down'" class="mr-1"></i>
+                      {{ shouldShowDetails(device.id) ? 'Скрыть детали' : 'Показать детали' }}
+                    </button>
+                  </div>
+                </div>
+                
+                <!-- Развернутая информация (показывается только при клике) -->
+                <div v-if="shouldShowDetails(device.id)" class="mt-3 border-t border-gray-100 pt-3">
+                  <!-- График влажности -->
+                  <HumidityChart 
+                    :device-id="device.id"
+                    :color="getHumidityColor(device.rawProperties?.tb_humidity)" 
+                  />
+                  
+                  <!-- Подробная информация о влажности -->
+                  <HumidityInfo
+                    :humidity="device.rawProperties?.tb_humidity || 0"
+                    :temperature="device.rawProperties?.tb_temperature || 22"
+                    :trend="-2"
+                  />
+                  
+                  <!-- Кнопки действий -->
+                  <div class="mt-3 flex gap-2">
+                    <button 
+                      class="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded flex-grow flex items-center justify-center hover:bg-blue-100 transition-colors"
+                    >
+                      <i class="fas fa-link mr-1"></i>
+                      Автоматизация
+                    </button>
+                    <button 
+                      class="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded flex-grow flex items-center justify-center hover:bg-blue-100 transition-colors"
+                    >
+                      <i class="fas fa-bell mr-1"></i>
+                      Уведомления
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- Умный замок -->
+          <template v-else-if="device.type === 'lock' || (device.category === 'SECURITY' && device.subType === 'SMART_LOCK')">
+            <div 
+              class="p-2 rounded-md mb-3 text-center"
+              :class="device.rawProperties?.tb_locked === 'true' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'"
+            >
+              <i :class="device.rawProperties?.tb_locked === 'true' ? 'fas fa-check-circle' : 'fas fa-lock-open'" class="mr-1"></i>
+              {{ device.rawProperties?.tb_locked === 'true' ? 'Закрыто' : 'Открыто' }}
+            </div>
+            <div class="flex justify-center mt-3">
+              <button 
+                class="px-4 py-2 rounded-md text-white"
+                :class="device.rawProperties?.tb_locked === 'true' ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'"
+                @click="toggleLock(device)"
+                :disabled="!device.canControl"
+              >
+                {{ device.rawProperties?.tb_locked === 'true' ? 'Открыть' : 'Закрыть' }}
+              </button>
+            </div>
+          </template>
+
+          <!-- Камера -->
+          <template v-else-if="device.type === 'camera' || (device.category === 'SECURITY' && device.subType === 'CAMERA')">
+            <div class="bg-gray-100 rounded-lg h-32 flex items-center justify-center">
+              <i class="fas fa-camera text-gray-400 text-3xl"></i>
+            </div>
+            <div class="mt-2 flex items-center justify-between">
+              <div class="text-sm text-gray-500">
+                {{ device.rawProperties?.tb_recording === 'on' ? 'Запись включена' : 'Запись выключена' }}
+              </div>
+              <button 
+                class="text-blue-500 text-sm"
+                @click="toggleRecording(device)"
+                :disabled="!device.canControl"
+              >
+                {{ device.rawProperties?.tb_recording === 'on' ? 'Остановить' : 'Начать запись' }}
+              </button>
+            </div>
+          </template>
+
+          <!-- Робот-пылесос -->
+          <template v-else-if="device.type === 'vacuum' || (device.category === 'APPLIANCES' && device.subType === 'VACUUM')">
+            <div class="flex items-center justify-between mb-2">
+              <div>Статус</div>
+              <div class="text-gray-500">{{ getVacuumStatus(device) }}</div>
+            </div>
+            <div class="flex items-center gap-2 mt-3">
+              <button 
+                class="px-3 py-1 rounded-md bg-blue-500 text-white text-sm flex items-center"
+                @click="startVacuum(device)"
+                :disabled="!device.canControl || device.rawProperties?.tb_power === 'on'"
+              >
+                <i class="fas fa-play mr-1"></i> Старт
+              </button>
+              <button 
+                class="px-3 py-1 rounded-md bg-gray-100 text-gray-700 text-sm flex items-center"
+                @click="stopVacuum(device)"
+                :disabled="!device.canControl || device.rawProperties?.tb_power !== 'on'"
+              >
+                <i class="fas fa-home mr-1"></i> Домой
+              </button>
+            </div>
+          </template>
+          
+          <!-- Другие устройства -->
+          <template v-else>
+            <div class="mt-4 flex items-center justify-between">
+              <div>Статус</div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  class="sr-only peer" 
+                  v-model="device.active"
+                  @change="toggleDevice(device)"
                   :disabled="!device.canControl"
                 >
-                  {{ device.rawProperties?.tb_recording === 'on' ? 'Остановить' : 'Начать запись' }}
-                </button>
-              </div>
-            </template>
-
-            <!-- Робот-пылесос -->
-            <template v-else-if="device.type === 'vacuum' || (device.category === 'APPLIANCES' && device.subType === 'VACUUM')">
-              <div class="flex items-center justify-between mb-2">
-                <div>Статус</div>
-                <div class="text-gray-500">{{ getVacuumStatus(device) }}</div>
-              </div>
-              <div class="flex items-center gap-2 mt-3">
-                <button 
-                  class="px-3 py-1 rounded-md bg-blue-500 text-white text-sm flex items-center"
-                  @click="startVacuum(device)"
-                  :disabled="!device.canControl || device.rawProperties?.tb_power === 'on'"
-                >
-                  <i class="fas fa-play mr-1"></i> Старт
-                </button>
-                <button 
-                  class="px-3 py-1 rounded-md bg-gray-100 text-gray-700 text-sm flex items-center"
-                  @click="stopVacuum(device)"
-                  :disabled="!device.canControl || device.rawProperties?.tb_power !== 'on'"
-                >
-                  <i class="fas fa-home mr-1"></i> Домой
-                </button>
-              </div>
-            </template>
-            
-            <!-- Другие устройства -->
-            <template v-else>
-              <div class="mt-4 flex items-center justify-between">
-                <div>Статус</div>
-                <label class="relative inline-flex items-center cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    class="sr-only peer" 
-                    v-model="device.active"
-                    @change="toggleDevice(device)"
-                    :disabled="!device.canControl"
-                  >
-                  <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                </label>
-              </div>
-              <div class="mt-2 text-sm text-gray-500">
-                {{ device.online ? 'Онлайн' : 'Офлайн' }}
-              </div>
-            </template>
-          </div>
+                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+            <div class="mt-2 text-sm text-gray-500">
+              {{ device.online ? 'Онлайн' : 'Офлайн' }}
+            </div>
+          </template>
         </div>
       </div>
-      
-      <div v-if="filteredDevices.length === 0" class="text-center py-12 text-gray-500">
-        <i class="text-4xl mb-4 fas fa-ghost"></i>
-        <p>Нет устройств в выбранной комнате</p>
-      </div>
+    </div>
+    
+    <div v-if="filteredDevices.length === 0" class="text-center py-12 text-gray-500">
+      <i class="text-4xl mb-4 fas fa-ghost"></i>
+      <p>Нет устройств в выбранной комнате</p>
     </div>
   </div>
   
@@ -748,6 +731,7 @@ export default {
     const selectedRoom = ref('all')
     const isAddDeviceModalOpen = ref(false)
     
+<<<<<<< HEAD
     // Создаем ref переменные для загрузки и ошибок
     const loading = ref(false)
     const error = ref(null)
@@ -757,6 +741,10 @@ export default {
       loading.value = deviceStore.loading
       error.value = deviceStore.error
     }
+=======
+    // Используем storeToRefs для получения реактивных свойств из стора
+    const { devices, loading, error } = storeToRefs(deviceStore)
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
     
     // Состояние отображения деталей для каждого устройства
     const deviceDetailsState = reactive({})
@@ -813,6 +801,7 @@ export default {
     const refreshDevices = async () => {
       try {
         isUpdating.value = true
+<<<<<<< HEAD
         loading.value = true // Устанавливаем флаг загрузки
         await deviceStore.fetchDevices()
         updateStoreState() // Обновляем состояние после запроса
@@ -822,6 +811,17 @@ export default {
       } finally {
         isUpdating.value = false
         loading.value = false // Сбрасываем флаг загрузки
+=======
+        loading.value = true
+        error.value = null
+        await deviceStore.fetchDevices()
+      } catch (err) {
+        console.error('Ошибка при обновлении данных:', err)
+        error.value = err.message || 'Ошибка при загрузке устройств'
+      } finally {
+        isUpdating.value = false
+        loading.value = false
+>>>>>>> 6c7fe1a1b428a4b484d858561b589922bdb4e9fd
       }
     }
     
@@ -1468,8 +1468,12 @@ export default {
       
       return `${sourceLabel}, канал ${channel}`
     }
-
+    
     return {
+      // Добавляем loading и error в возвращаемые значения
+      loading,
+      error,
+      devices,
       searchQuery,
       selectedRoom,
       rooms,
