@@ -598,6 +598,614 @@ export const useDeviceStore = defineStore('devices', {
         console.error('Ошибка при получении истории температуры:', error)
         throw error
       }
+    },
+
+    // Методы для работы со смарт-замками
+    
+    // Метод для переключения состояния замка
+    async toggleLock(deviceId) {
+      const device = this.getDeviceById(deviceId);
+      if (!device) {
+        throw new Error('Устройство не найдено');
+      }
+      
+      // Проверяем, является ли устройство замком
+      if (!(device.type === 'lock' || 
+          (device.category === 'SECURITY' && device.subType === 'SMART_LOCK'))) {
+        throw new Error('Устройство не является замком');
+      }
+      
+      // Получаем текущее состояние
+      const currentState = device.rawProperties?.tb_locked === 'true';
+      const newState = !currentState;
+      
+      // Отправляем команду
+      return this.sendCommand(deviceId, 'setState', { 
+        tb_locked: newState.toString() 
+      });
+    },
+    
+    // Метод для работы с датчиками безопасности
+    
+    // Обновление состояния датчика движения
+    async updateMotionSensor(deviceId, isMotionDetected, options = {}) {
+      try {
+        // Валидация параметров
+        if (!deviceId) {
+          throw new Error('Не указан ID датчика движения')
+        }
+        
+        const device = this.devices.find(d => d.id === deviceId)
+        if (!device) {
+          throw new Error(`Датчик с ID ${deviceId} не найден`)
+        }
+        
+        // Проверяем, является ли устройство датчиком движения
+        if (device.type !== 'sensor' || (device.subType !== 'MOTION_SENSOR' && 
+            device.rawProperties?.tb_sensorType !== 'motion')) {
+          throw new Error('Устройство не является датчиком движения')
+        }
+        
+        // Преобразуем булево значение в строку для сохранения
+        const motionValue = isMotionDetected ? 'true' : 'false'
+        const batteryLevel = options.battery || (device.rawProperties?.tb_battery || '70')
+        const priority = isMotionDetected ? 'medium' : 'low'
+        
+        // Обновляем локальное состояние
+        if (!device.rawProperties) {
+          device.rawProperties = {}
+        }
+        
+        device.rawProperties.tb_motion = motionValue
+        device.rawProperties.tb_battery = batteryLevel
+        
+        // Вместо сеттера (для реактивности)
+        const index = this.devices.findIndex(d => d.id === deviceId)
+        if (index !== -1) {
+          this.devices[index] = { ...device }
+        }
+        
+        // Отправляем команду на сервер для обновления состояния
+        const commandResult = await this.sendCommand(deviceId, 'updateAttributes', {
+          tb_motion: motionValue,
+          tb_battery: batteryLevel
+        })
+        
+        console.log('Результат отправки команды:', commandResult)
+        
+        // Только если обнаружено движение, добавляем запись в историю
+        if (isMotionDetected) {
+          await this.addSensorHistoryEntry(deviceId, 'motion', {
+            detected: isMotionDetected,
+            battery: batteryLevel,
+            priority
+          })
+        }
+        
+        return { success: true, isMotionDetected }
+      } catch (error) {
+        console.error('Ошибка при обновлении датчика движения:', error)
+        return { success: false, error: error.message }
+      }
+    },
+    
+    // Обновление состояния датчика открытия
+    async updateContactSensor(deviceId, isOpen, options = {}) {
+      try {
+        // Валидация параметров
+        if (!deviceId) {
+          throw new Error('Не указан ID датчика открытия')
+        }
+        
+        const device = this.devices.find(d => d.id === deviceId)
+        if (!device) {
+          throw new Error(`Датчик с ID ${deviceId} не найден`)
+        }
+        
+        // Проверяем, является ли устройство датчиком открытия
+        if (device.type !== 'sensor' || (device.subType !== 'CONTACT_SENSOR' && 
+            device.rawProperties?.tb_sensorType !== 'contact')) {
+          throw new Error('Устройство не является датчиком открытия')
+        }
+        
+        // Преобразуем булево значение в строку для сохранения
+        const contactValue = isOpen ? 'open' : 'closed'
+        const batteryLevel = options.battery || (device.rawProperties?.tb_battery || '70')
+        const priority = isOpen ? 'high' : 'low'
+        
+        // Обновляем локальное состояние
+        if (!device.rawProperties) {
+          device.rawProperties = {}
+        }
+        
+        device.rawProperties.tb_contact = contactValue
+        device.rawProperties.tb_battery = batteryLevel
+        
+        // Вместо сеттера (для реактивности)
+        const index = this.devices.findIndex(d => d.id === deviceId)
+        if (index !== -1) {
+          this.devices[index] = { ...device }
+        }
+        
+        // Отправляем команду на сервер для обновления состояния
+        const commandResult = await this.sendCommand(deviceId, 'updateAttributes', {
+          tb_contact: contactValue,
+          tb_battery: batteryLevel
+        })
+        
+        console.log('Результат отправки команды:', commandResult)
+        
+        // Только если контакт открыт, добавляем запись в историю
+        if (isOpen) {
+          await this.addSensorHistoryEntry(deviceId, 'contact', {
+            isOpen,
+            battery: batteryLevel,
+            priority
+          })
+        }
+        
+        return { success: true, isOpen }
+      } catch (error) {
+        console.error('Ошибка при обновлении датчика открытия:', error)
+        return { success: false, error: error.message }
+      }
+    },
+    
+    // Обновление состояния датчика дыма
+    async updateSmokeSensor(deviceId, isSmokeDetected, options = {}) {
+      try {
+        // Валидация параметров
+        if (!deviceId) {
+          throw new Error('Не указан ID датчика дыма')
+        }
+        
+        const device = this.devices.find(d => d.id === deviceId)
+        if (!device) {
+          throw new Error(`Датчик с ID ${deviceId} не найден`)
+        }
+        
+        // Проверяем, является ли устройство датчиком дыма
+        if (device.type !== 'sensor' || (device.subType !== 'SMOKE_SENSOR' && 
+            device.rawProperties?.tb_sensorType !== 'smoke')) {
+          throw new Error('Устройство не является датчиком дыма')
+        }
+        
+        // Преобразуем булево значение в строку для сохранения
+        const smokeValue = isSmokeDetected ? 'true' : 'false'
+        const batteryLevel = options.battery || (device.rawProperties?.tb_battery || '70')
+        const priority = isSmokeDetected ? 'critical' : 'low'
+        
+        // Обновляем локальное состояние
+        if (!device.rawProperties) {
+          device.rawProperties = {}
+        }
+        
+        device.rawProperties.tb_smoke = smokeValue
+        device.rawProperties.tb_battery = batteryLevel
+        
+        // Вместо сеттера (для реактивности)
+        const index = this.devices.findIndex(d => d.id === deviceId)
+        if (index !== -1) {
+          this.devices[index] = { ...device }
+        }
+        
+        // Отправляем команду на сервер для обновления состояния
+        const commandResult = await this.sendCommand(deviceId, 'updateAttributes', {
+          tb_smoke: smokeValue,
+          tb_battery: batteryLevel
+        })
+        
+        console.log('Результат отправки команды:', commandResult)
+        
+        // Только если обнаружен дым, добавляем запись в историю
+        if (isSmokeDetected) {
+          await this.addSensorHistoryEntry(deviceId, 'smoke', {
+            detected: isSmokeDetected,
+            battery: batteryLevel,
+            priority
+          })
+        }
+        
+        return { success: true, isSmokeDetected }
+      } catch (error) {
+        console.error('Ошибка при обновлении датчика дыма:', error)
+        return { success: false, error: error.message }
+      }
+    },
+    
+    // Обновление состояния датчика протечки
+    async updateLeakSensor(deviceId, isLeakDetected, options = {}) {
+      try {
+        // Валидация параметров
+        if (!deviceId) {
+          throw new Error('Не указан ID датчика протечки')
+        }
+        
+        const device = this.devices.find(d => d.id === deviceId)
+        if (!device) {
+          throw new Error(`Датчик с ID ${deviceId} не найден`)
+        }
+        
+        // Проверяем, является ли устройство датчиком протечки
+        if (device.type !== 'sensor' || (device.subType !== 'LEAK_SENSOR' && 
+            device.rawProperties?.tb_sensorType !== 'leak')) {
+          throw new Error('Устройство не является датчиком протечки')
+        }
+        
+        // Преобразуем булево значение в строку для сохранения
+        const leakValue = isLeakDetected ? 'true' : 'false'
+        const batteryLevel = options.battery || (device.rawProperties?.tb_battery || '70')
+        const priority = isLeakDetected ? 'critical' : 'low'
+        
+        // Обновляем локальное состояние
+        if (!device.rawProperties) {
+          device.rawProperties = {}
+        }
+        
+        device.rawProperties.tb_leak = leakValue
+        device.rawProperties.tb_battery = batteryLevel
+        
+        // Вместо сеттера (для реактивности)
+        const index = this.devices.findIndex(d => d.id === deviceId)
+        if (index !== -1) {
+          this.devices[index] = { ...device }
+        }
+        
+        // Отправляем команду на сервер для обновления состояния
+        const commandResult = await this.sendCommand(deviceId, 'updateAttributes', {
+          tb_leak: leakValue,
+          tb_battery: batteryLevel
+        })
+        
+        console.log('Результат отправки команды:', commandResult)
+        
+        // Только если обнаружена протечка, добавляем запись в историю
+        if (isLeakDetected) {
+          await this.addSensorHistoryEntry(deviceId, 'leak', {
+            detected: isLeakDetected,
+            battery: batteryLevel,
+            priority
+          })
+        }
+        
+        return { success: true, isLeakDetected }
+      } catch (error) {
+        console.error('Ошибка при обновлении датчика протечки:', error)
+        return { success: false, error: error.message }
+      }
+    },
+    
+    // Метод для добавления записи в историю датчиков
+    async addSensorHistoryEntry(deviceId, sensorType, data = {}) {
+      try {
+        // Проверка на наличие deviceId и тип датчика
+        if (!deviceId) {
+          console.error('Не указан ID устройства при добавлении истории датчика')
+          return { success: false }
+        }
+        
+        // Находим устройство для получения информации о нем
+        const device = this.devices.find(d => d.id === deviceId)
+        if (!device) {
+          console.warn(`Устройство с ID ${deviceId} не найдено при добавлении истории`)
+        }
+        
+        // Получаем сообщение в зависимости от типа датчика
+        const message = this.getSensorMessage(sensorType, data)
+        
+        // Получаем приоритет срабатывания
+        let priority = data.priority || 'normal'
+        // Если это важное срабатывание (например, дым или протечка), повышаем приоритет
+        if (sensorType === 'smoke' && data.detected) {
+          priority = 'critical'
+        } else if (sensorType === 'leak' && data.detected) {
+          priority = 'high'
+        } else if (sensorType === 'contact' && data.isOpen) {
+          priority = 'medium'
+        }
+        
+        // Формируем запись для истории
+        const historyEntry = {
+          deviceId: deviceId,
+          deviceName: device ? device.name : 'Неизвестное устройство',
+          room: device ? device.room : '',
+          sensorType: sensorType,
+          value: data.detected ? 'true' : 
+                 data.isOpen ? 'open' : 
+                 data.value || 'false',
+          message: message,
+          priority: priority,
+          acknowledged: false
+        }
+        
+        // Отправляем на сервер
+        try {
+          const response = await api.devices.addSensorHistoryEntry(deviceId, historyEntry)
+          console.log('Запись в историю датчиков добавлена:', response)
+          return { success: true, entry: response }
+        } catch (err) {
+          console.error('Ошибка при отправке истории на сервер:', err)
+          
+          // В режиме разработки сохраняем запись локально
+          if (process.env.NODE_ENV === 'development') {
+            // Получаем текущую историю из localStorage
+            const historyKey = 'sensor_history'
+            let sensorHistory = JSON.parse(localStorage.getItem(historyKey) || '[]')
+            
+            // Добавляем ID для локальной версии
+            const entry = {
+              ...historyEntry,
+              id: Date.now().toString(),
+              timestamp: new Date().toISOString()
+            }
+            
+            // Добавляем запись в начало массива
+            sensorHistory.unshift(entry)
+            
+            // Ограничиваем историю до 100 записей
+            if (sensorHistory.length > 100) {
+              sensorHistory = sensorHistory.slice(0, 100)
+            }
+            
+            // Сохраняем обновленную историю
+            localStorage.setItem(historyKey, JSON.stringify(sensorHistory))
+            
+            return { success: true, entry, isLocalOnly: true }
+          }
+          
+          return { success: false, error: err.message }
+        }
+      } catch (err) {
+        console.error('Ошибка при добавлении истории датчика:', err)
+        return { success: false, error: err.message }
+      }
+    },
+    
+    // Получение текста сообщения в зависимости от типа датчика
+    getSensorMessage(sensorType, data) {
+      switch(sensorType) {
+        case 'motion':
+          return data.detected ? 'Обнаружено движение' : 'Движение прекратилось'
+        case 'contact':
+          return data.isOpen ? 'Дверь/окно открыто' : 'Дверь/окно закрыто'
+        case 'smoke':
+          return data.detected ? 'Обнаружен дым!' : 'Дым не обнаружен'
+        case 'leak':
+          return data.detected ? 'Обнаружена протечка воды!' : 'Протечка не обнаружена'
+        default:
+          return 'Изменение состояния датчика'
+      }
+    },
+    
+    async getSensorHistory(deviceId = null, options = {}) {
+      try {
+        // Запрос истории датчиков с сервера
+        let sensorHistory
+        
+        if (deviceId) {
+          // Получаем историю для конкретного датчика
+          sensorHistory = await api.devices.getSensorHistory(deviceId)
+        } else {
+          // Получаем общую историю всех датчиков
+          sensorHistory = await api.devices.getAllSensorHistory()
+        }
+        
+        // Применяем дополнительные фильтры из options
+        if (options.sensorType) {
+          sensorHistory = sensorHistory.filter(entry => entry.sensorType === options.sensorType)
+        }
+        
+        if (options.startDate) {
+          const startDate = new Date(options.startDate)
+          sensorHistory = sensorHistory.filter(entry => new Date(entry.timestamp) >= startDate)
+        }
+        
+        if (options.endDate) {
+          const endDate = new Date(options.endDate)
+          sensorHistory = sensorHistory.filter(entry => new Date(entry.timestamp) <= endDate)
+        }
+        
+        if (options.acknowledged !== undefined) {
+          sensorHistory = sensorHistory.filter(entry => entry.acknowledged === options.acknowledged)
+        }
+        
+        // Возвращаем только реальные данные из API
+        return sensorHistory
+      } catch (err) {
+        console.error('Ошибка при получении истории датчиков:', err)
+        // В случае ошибки возвращаем пустой массив
+        return []
+      }
+    },
+    
+    // Обновление записи в истории датчиков (например, пометка "прочитано")
+    async updateSensorHistoryEntry(entryId, updateData) {
+      try {
+        // Отправляем запрос на сервер
+        if (updateData.acknowledged !== undefined) {
+          const result = await api.devices.acknowledgeSensorHistoryEntry(entryId)
+          return { success: true, entry: result }
+        } else {
+          throw new Error('Неподдерживаемый тип обновления')
+        }
+      } catch (err) {
+        console.error('Ошибка при обновлении истории датчика:', err)
+        
+        // В режиме разработки обновляем локально
+        if (process.env.NODE_ENV === 'development') {
+          const historyKey = 'sensor_history'
+          let sensorHistory = JSON.parse(localStorage.getItem(historyKey) || '[]')
+          
+          // Находим запись для обновления
+          const entryIndex = sensorHistory.findIndex(entry => entry.id === entryId)
+          if (entryIndex === -1) {
+            console.warn(`Запись с ID ${entryId} не найдена в истории датчиков`)
+            return { success: false }
+          }
+          
+          // Обновляем запись
+          sensorHistory[entryIndex] = {
+            ...sensorHistory[entryIndex],
+            ...updateData,
+            updatedAt: new Date().toISOString()
+          }
+          
+          // Сохраняем обновления
+          localStorage.setItem(historyKey, JSON.stringify(sensorHistory))
+          
+          return { success: true, entry: sensorHistory[entryIndex], isLocalOnly: true }
+        }
+        
+        return { success: false, error: err.message }
+      }
+    },
+    
+    // Пометка всех записей как прочитанные
+    async acknowledgeAllSensorHistory(deviceId = null) {
+      try {
+        // Отправляем запрос на сервер
+        if (deviceId) {
+          const result = await api.devices.acknowledgeAllSensorHistoryForDevice(deviceId)
+          return { success: true, count: result.acknowledgedCount }
+        } else {
+          const result = await api.devices.acknowledgeAllSensorHistory()
+          return { success: true, count: result.acknowledgedCount }
+        }
+      } catch (err) {
+        console.error('Ошибка при массовом обновлении истории датчиков:', err)
+        
+        // В режиме разработки обновляем локально
+        if (process.env.NODE_ENV === 'development') {
+          const historyKey = 'sensor_history'
+          let sensorHistory = JSON.parse(localStorage.getItem(historyKey) || '[]')
+          
+          // Обновляем статус "прочитано" для всех записей
+          let count = 0
+          sensorHistory = sensorHistory.map(entry => {
+            // Если указан deviceId, обновляем только для этого устройства
+            if (deviceId && entry.deviceId !== deviceId) {
+              return entry
+            }
+            
+            if (!entry.acknowledged) {
+              count++
+              return { ...entry, acknowledged: true, updatedAt: new Date().toISOString() }
+            }
+            
+            return entry
+          })
+          
+          // Сохраняем обновления
+          localStorage.setItem(historyKey, JSON.stringify(sensorHistory))
+          
+          return { success: true, count, isLocalOnly: true }
+        }
+        
+        return { success: false, error: err.message }
+      }
+    },
+
+    // Для симуляции данных изменяем метод, чтобы он был более реалистичным
+    getDemoSensorHistory(deviceId = null) {
+      // Генерируем случайные временные метки за последние 7 дней
+      const generateRandomDate = () => {
+        const now = new Date()
+        const daysAgo = Math.floor(Math.random() * 7) // От 0 до 7 дней назад
+        const hoursAgo = Math.floor(Math.random() * 24) // От 0 до 24 часов назад
+        const minutesAgo = Math.floor(Math.random() * 60) // От 0 до 60 минут назад
+        
+        now.setDate(now.getDate() - daysAgo)
+        now.setHours(now.getHours() - hoursAgo)
+        now.setMinutes(now.getMinutes() - minutesAgo)
+        
+        return now
+      }
+      
+      // Список демо-устройств для выбора, если deviceId не указан
+      const demoDevices = [
+        { id: 'motion-sensor-1', name: 'Датчик движения (Гостиная)', room: 'Гостиная', type: 'motion' },
+        { id: 'motion-sensor-2', name: 'Датчик движения (Коридор)', room: 'Коридор', type: 'motion' },
+        { id: 'contact-sensor-1', name: 'Датчик открытия (Входная дверь)', room: 'Прихожая', type: 'contact' },
+        { id: 'contact-sensor-2', name: 'Датчик открытия (Окно - Спальня)', room: 'Спальня', type: 'contact' },
+        { id: 'smoke-sensor-1', name: 'Датчик дыма (Кухня)', room: 'Кухня', type: 'smoke' },
+        { id: 'leak-sensor-1', name: 'Датчик протечки (Ванная)', room: 'Ванная', type: 'leak' }
+      ]
+      
+      // Функция для генерации сообщений по типу датчика
+      const getMessageByType = (type, state) => {
+        switch(type) {
+          case 'motion':
+            return state ? 'Обнаружено движение' : 'Движение прекратилось'
+          case 'contact':
+            return state ? 'Дверь/окно открыто' : 'Дверь/окно закрыто'
+          case 'smoke':
+            return state ? 'Обнаружен дым!' : 'Дым не обнаружен'
+          case 'leak':
+            return state ? 'Обнаружена протечка воды!' : 'Протечка не обнаружена'
+          default:
+            return 'Изменение состояния датчика'
+        }
+      }
+      
+      // Генерация приоритета по типу и состоянию
+      const getPriorityByType = (type, state) => {
+        if (!state) return 'low' // Если датчик вернулся в нормальное состояние
+        
+        switch(type) {
+          case 'smoke': return 'critical'
+          case 'leak': return 'high'
+          case 'contact': return 'medium'
+          case 'motion': return 'normal'
+          default: return 'normal'
+        }
+      }
+      
+      // Генерируем историю
+      const historyItems = []
+      
+      // Количество записей для генерации
+      const entryCount = Math.floor(Math.random() * 10) + 5 // от 5 до 15
+      
+      for (let i = 0; i < entryCount; i++) {
+        // Выбираем устройство
+        let device
+        
+        if (deviceId) {
+          // Если задан конкретный deviceId, используем его
+          device = demoDevices.find(d => d.id === deviceId) || demoDevices[0]
+        } else {
+          // Иначе выбираем случайное устройство
+          const randomDeviceIndex = Math.floor(Math.random() * demoDevices.length)
+          device = demoDevices[randomDeviceIndex]
+        }
+        
+        // Определяем состояние (активация/деактивация)
+        const state = Math.random() > 0.5
+        
+        // Создаем запись
+        const entry = {
+          id: `demo-${Date.now()}-${i}`,
+          deviceId: device.id,
+          deviceName: device.name,
+          room: device.room,
+          type: device.type,
+          timestamp: generateRandomDate(),
+          acknowledged: Math.random() > 0.3, // 70% шанс, что событие уже прочитано
+          priority: getPriorityByType(device.type, state),
+          message: getMessageByType(device.type, state),
+          data: {
+            state,
+            timestamp: new Date()
+          }
+        }
+        
+        historyItems.push(entry)
+      }
+      
+      // Сортировка по времени (новые в начале)
+      historyItems.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      
+      return historyItems
     }
   }
 }) 

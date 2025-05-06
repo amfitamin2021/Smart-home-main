@@ -30,52 +30,97 @@ public class VirtualDeviceAdapter implements ProtocolAdapter {
     @Override
     public boolean sendCommand(Device device, String command, Map<String, String> parameters) {
         String deviceId = device.getId().toString();
-        log.debug("Отправлена команда на виртуальное устройство {}: {} с параметрами {}", 
+        log.info("Отправка команды на виртуальное устройство {}: {} с параметрами {}", 
                 device.getName(), command, parameters);
         
-        // Получаем текущее состояние устройства
-        Map<String, String> state = deviceStateCache.computeIfAbsent(deviceId, k -> new HashMap<>());
-        
-        // Эмулируем обработку команд
-        switch (command) {
-            case "setState" -> {
-                // Обработка команды установки состояния с несколькими параметрами
-                // Копируем все параметры в состояние устройства
-                state.putAll(parameters);
-                log.debug("Обновлено состояние устройства {}: {}", device.getName(), parameters);
-                
-                // Обновляем свойства в самом устройстве
-                device.getProperties().putAll(parameters);
-            }
-            case "power" -> {
-                if (parameters.containsKey("state")) {
-                    state.put("power", parameters.get("state"));
+        try {
+            // Получаем текущее состояние устройства
+            Map<String, String> state = deviceStateCache.computeIfAbsent(deviceId, k -> new HashMap<>());
+            
+            // Обработка ThingsBoard префикса, который может присутствовать в параметрах
+            Map<String, String> cleanedParams = new HashMap<>();
+            for (Map.Entry<String, String> entry : parameters.entrySet()) {
+                if (entry.getKey().startsWith("tb_")) {
+                    cleanedParams.put(entry.getKey().substring(3), entry.getValue());
+                } else {
+                    cleanedParams.put(entry.getKey(), entry.getValue());
                 }
             }
-            case "brightness" -> {
-                if (parameters.containsKey("level")) {
-                    state.put("brightness", parameters.get("level"));
-                }
+            
+            // Эмулируем обработку команд
+            switch (command.toLowerCase()) {
+                case "setstate":
+                case "setState":
+                    // Обработка команды установки состояния с несколькими параметрами
+                    // Копируем все параметры в состояние устройства
+                    state.putAll(cleanedParams);
+                    log.debug("Обновлено состояние устройства {}: {}", device.getName(), cleanedParams);
+                    break;
+                    
+                case "toggle":
+                case "power":
+                    // Обработка включения/выключения
+                    String powerState = cleanedParams.getOrDefault("state", 
+                                       cleanedParams.getOrDefault("power", ""));
+                    if (powerState.isEmpty() && state.containsKey("power")) {
+                        // Если состояние не указано, но есть текущее - переключаем
+                        powerState = "on".equals(state.get("power")) ? "off" : "on";
+                    }
+                    if (!powerState.isEmpty()) {
+                        log.debug("Устройство {} изменило состояние на {}", device.getName(), powerState);
+                        state.put("power", powerState);
+                    }
+                    break;
+                    
+                case "brightness":
+                    // Изменение яркости
+                    String brightness = cleanedParams.getOrDefault("level", 
+                                       cleanedParams.getOrDefault("value", 
+                                       cleanedParams.getOrDefault("brightness", "")));
+                    if (!brightness.isEmpty()) {
+                        log.debug("Устройство {} изменило яркость на {}", device.getName(), brightness);
+                        state.put("brightness", brightness);
+                    }
+                    break;
+                    
+                case "color":
+                    // Изменение цвета
+                    String color = cleanedParams.getOrDefault("rgb", 
+                                 cleanedParams.getOrDefault("color", ""));
+                    if (!color.isEmpty()) {
+                        log.debug("Устройство {} изменило цвет на {}", device.getName(), color);
+                        state.put("color", color);
+                    }
+                    break;
+                    
+                case "settargettemperature":
+                case "setTargetTemperature":
+                case "temperature":
+                    // Изменение температуры
+                    String temp = cleanedParams.getOrDefault("value", 
+                                cleanedParams.getOrDefault("temperature", ""));
+                    if (!temp.isEmpty()) {
+                        log.debug("Устройство {} изменило целевую температуру на {}", device.getName(), temp);
+                        state.put("target_temperature", temp);
+                    }
+                    break;
+                    
+                default:
+                    log.warn("Неизвестная команда {} для устройства {}", command, device.getName());
+                    return false; // Неизвестная команда
             }
-            case "color" -> {
-                if (parameters.containsKey("rgb")) {
-                    state.put("color", parameters.get("rgb"));
-                }
-            }
-            case "temperature" -> {
-                if (parameters.containsKey("value")) {
-                    state.put("temperature", parameters.get("value"));
-                }
-            }
-            // Другие команды...
-            default -> log.warn("Неизвестная команда {} для устройства {}", command, device.getName());
+            
+            // Обновляем время последнего обновления
+            lastUpdateTime.put(deviceId, System.currentTimeMillis());
+            
+            // Для большинства виртуальных устройств успех почти всегда гарантирован
+            return random.nextDouble() > 0.01; // только 1% вероятность ошибки
+            
+        } catch (Exception e) {
+            log.error("Ошибка при обработке команды для виртуального устройства {}: {}", 
+                     device.getName(), e.getMessage(), e);
+            return false;
         }
-        
-        // Обновляем время последнего обновления
-        lastUpdateTime.put(deviceId, System.currentTimeMillis());
-        
-        // Эмулируем вероятность ошибки для более реалистичного поведения
-        return random.nextDouble() > 0.05; // 5% вероятность ошибки
     }
     
     @Override

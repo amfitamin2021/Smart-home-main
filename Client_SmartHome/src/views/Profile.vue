@@ -184,124 +184,160 @@
 
 <script>
 import { defineComponent, ref, computed, onMounted } from 'vue'
+import { useUserStore } from '../store/userStore'
 
 export default defineComponent({
   name: 'ProfileView',
   
   setup() {
-    // Данные пользователя (в реальном приложении загружались бы из API)
+    const userStore = useUserStore()
+    
+    // Загружаем пользователя из хранилища
+    const currentUser = computed(() => userStore.user || {})
+    
+    // Данные пользователя (объединяем с данными из API)
     const user = ref({
-      id: 1,
-      name: 'Иван Иванов',
-      email: 'ivan@example.com',
+      id: currentUser.value?.id || 1,
+      name: currentUser.value?.username || 'Пользователь',
+      email: currentUser.value?.email || 'user@example.com',
       homeCount: 1,
       devicesCount: 5,
-      registrationDate: new Date(2023, 0, 15)
+      registrationDate: new Date() // В реальном приложении должно приходить с сервера
     })
     
-    // URL изображения профиля
-    const profileImage = ref(null)
-    
-    // Форма редактирования профиля
+    // Форма для редактирования данных
     const form = ref({
-      name: 'Иван',
-      lastName: 'Иванов',
-      email: 'ivan@example.com',
-      phone: '+7 (999) 123-45-67',
-      address: 'г. Москва, ул. Примерная, д. 1, кв. 123',
+      name: user.value.name,
+      lastName: '',
+      email: user.value.email,
+      phone: '',
+      address: '',
       primaryHome: 1
     })
     
-    // Список домов пользователя
-    const homes = ref([
-      { id: 1, name: 'Квартира' },
-      { id: 2, name: 'Дача' }
-    ])
+    // Изображение профиля
+    const profileImage = ref(null)
     
-    // Список пользователей с доступом к основному дому
-    const homeMembers = ref([
-      { id: 1, name: 'Иван Иванов', role: 'Владелец', image: null },
-      { id: 2, name: 'Елена Иванова', role: 'Член семьи', image: null }
-    ])
-    
-    // Активные сессии
-    const sessions = ref([
-      { 
-        device: 'Chrome на Windows',
-        location: 'Москва, Россия',
-        lastActivity: new Date(),
-        current: true
-      },
-      { 
-        device: 'Safari на iPhone',
-        location: 'Москва, Россия',
-        lastActivity: new Date(Date.now() - 86400000 * 2)
-      },
-      { 
-        device: 'Firefox на Mac',
-        location: 'Санкт-Петербург, Россия',
-        lastActivity: new Date(Date.now() - 86400000 * 5)
+    // Метод сохранения профиля
+    const saveProfile = async () => {
+      try {
+        // Подготовка данных для обновления
+        const userData = {
+          name: form.value.name,
+          email: form.value.email,
+          // Другие поля...
+        }
+        
+        // Вызов API для обновления профиля
+        await userStore.updateUserProfile(userData)
+        
+        // Обновление локальных данных
+        user.value.name = form.value.name
+        user.value.email = form.value.email
+        
+        alert('Профиль успешно обновлен')
+      } catch (error) {
+        console.error('Ошибка при обновлении профиля', error)
+        alert('Произошла ошибка при обновлении профиля')
       }
-    ])
+    }
     
-    // Множественное число для домов и устройств
+    // Геттеры для корректного склонения слов
     const getHomesText = computed(() => {
       const count = user.value.homeCount
       if (count === 1) return 'дом'
-      if (count >= 2 && count <= 4) return 'дома'
-      return 'домов'
+      else if (count > 1 && count < 5) return 'дома'
+      else return 'домов'
     })
     
     const getDevicesText = computed(() => {
       const count = user.value.devicesCount
       if (count === 1) return 'устройство'
-      if (count >= 2 && count <= 4) return 'устройства'
-      return 'устройств'
+      else if (count > 1 && count < 5) return 'устройства'
+      else return 'устройств'
     })
     
     // Форматирование даты
     const formatDate = (date) => {
-      return new Date(date).toLocaleString('ru-RU', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-      })
+      if (!date) return ''
+      return new Date(date).toLocaleDateString('ru-RU')
     }
     
-    // Получение иконки для устройства
-    const getDeviceIcon = (deviceName) => {
-      if (deviceName.includes('Chrome')) return 'fab fa-chrome'
-      if (deviceName.includes('Safari')) return 'fab fa-safari'
-      if (deviceName.includes('Firefox')) return 'fab fa-firefox'
-      if (deviceName.includes('iPhone') || deviceName.includes('iPad')) return 'fab fa-apple'
-      if (deviceName.includes('Android')) return 'fab fa-android'
-      if (deviceName.includes('Windows')) return 'fab fa-windows'
-      if (deviceName.includes('Mac')) return 'fab fa-apple'
-      return 'fas fa-desktop'
+    // Получение иконки устройства
+    const getDeviceIcon = (device) => {
+      if (device.toLowerCase().includes('iphone') || device.toLowerCase().includes('ios')) {
+        return 'fab fa-apple'
+      } else if (device.toLowerCase().includes('android')) {
+        return 'fab fa-android'
+      } else if (device.toLowerCase().includes('windows')) {
+        return 'fab fa-windows'
+      } else {
+        return 'fas fa-desktop'
+      }
     }
     
-    // Сохранение профиля
-    const saveProfile = () => {
-      // В реальном приложении здесь был бы API-запрос
-      alert('Профиль сохранен')
-    }
+    // Имитация данных о домах
+    const homes = ref([
+      { id: 1, name: 'Мой дом' },
+      { id: 2, name: 'Дача' }
+    ])
     
-    onMounted(() => {
-      // В реальном приложении здесь загружались бы данные пользователя
+    // Имитация данных о пользователях с доступом
+    const homeMembers = ref([
+      { id: 1, name: user.value.name, role: 'Владелец', image: null },
+      { id: 2, name: 'Александр Петров', role: 'Гость', image: null }
+    ])
+    
+    // Имитация данных о сессиях
+    const sessions = ref([
+      { 
+        device: 'Windows 10 - Chrome',
+        location: 'Москва, Россия',
+        lastActivity: new Date(),
+        current: true 
+      },
+      { 
+        device: 'iPhone 12 - Safari',
+        location: 'Москва, Россия',
+        lastActivity: new Date(Date.now() - 86400000), // вчера
+        current: false 
+      }
+    ])
+    
+    // Загрузка данных при монтировании компонента
+    onMounted(async () => {
+      try {
+        // Попытка загрузить актуальные данные пользователя
+        await userStore.fetchCurrentUser()
+        
+        // Обновление локальных данных
+        user.value.id = currentUser.value?.id || 1
+        user.value.name = currentUser.value?.username || 'Пользователь'
+        user.value.email = currentUser.value?.email || 'user@example.com'
+        
+        // Обновление формы
+        form.value.name = user.value.name
+        form.value.email = user.value.email
+        
+        // Обновление списка участников
+        homeMembers.value[0].name = user.value.name
+      } catch (error) {
+        console.error('Ошибка при загрузке данных пользователя', error)
+      }
     })
     
     return {
       user,
-      profileImage,
       form,
-      homes,
-      homeMembers,
-      sessions,
+      profileImage,
+      saveProfile,
       getHomesText,
       getDevicesText,
       formatDate,
       getDeviceIcon,
-      saveProfile
+      homes,
+      homeMembers,
+      sessions
     }
   }
 })

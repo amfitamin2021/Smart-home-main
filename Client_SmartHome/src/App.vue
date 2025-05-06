@@ -1,24 +1,35 @@
 <script>
 import Sidebar from './components/layout/Sidebar.vue'
 import Header from './components/layout/Header.vue'
+import { useUserStore } from './store/userStore'
+import { computed } from 'vue'
 
 export default {
   name: 'App',
   components: {
     Sidebar,
     Header
+  },
+  setup() {
+    const userStore = useUserStore()
+    const isLoggedIn = computed(() => userStore.isLoggedIn)
+    
+    return {
+      isLoggedIn
+    }
   }
 }
 </script>
 
 <template>
   <div class="min-h-screen bg-gray-50 flex" id="smart-home-app">
-    <!-- Боковое меню -->
-    <Sidebar />
+    <!-- Боковое меню - показываем только для авторизованных пользователей -->
+    <Sidebar v-if="isLoggedIn" />
     
     <!-- Основной контент -->
-    <main id="main-content" class="lg:ml-56 min-h-screen flex-1">
-      <Header />
+    <main id="main-content" :class="{'lg:ml-56': isLoggedIn}" class="min-h-screen flex-1">
+      <!-- Хедер - показываем только для авторизованных пользователей -->
+      <Header v-if="isLoggedIn" />
       <router-view />
     </main>
   </div>

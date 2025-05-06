@@ -36,13 +36,6 @@
         >
           <i class="fas fa-bell mr-2"></i>Сигнализация
         </router-link>
-        <router-link 
-          to="/security/history" 
-          class="pb-3 px-1 border-b-2 transition-colors"
-          :class="isActive('history') ? 'border-blue-500 text-blue-600' : 'border-transparent hover:border-gray-300'"
-        >
-          <i class="fas fa-history mr-2"></i>История
-        </router-link>
       </div>
     </div>
 

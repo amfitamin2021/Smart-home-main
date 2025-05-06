@@ -1,7 +1,7 @@
 package com.example.Smarthome.controller;
 
 import com.example.Smarthome.dto.LocationDto;
-import com.example.Smarthome.dto.RoomDto;
+import com.example.Smarthome.dto.RoomDTO;
 import com.example.Smarthome.model.Device;
 import com.example.Smarthome.model.Location;
 import com.example.Smarthome.model.Room;
@@ -116,13 +116,13 @@ public class LocationController {
      * Получение всех комнат локации
      */
     @GetMapping("/{locationId}/rooms")
-    public ResponseEntity<List<RoomDto>> getRooms(@PathVariable UUID locationId) {
+    public ResponseEntity<List<RoomDTO>> getRooms(@PathVariable UUID locationId) {
         Location location = locationService.getLocationById(locationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, 
                         "Локация с ID " + locationId + " не найдена"));
         
         List<Room> rooms = roomRepository.findByLocation(location);
-        List<RoomDto> roomDtos = rooms.stream()
+        List<RoomDTO> roomDtos = rooms.stream()
                 .map(this::convertToRoomDto)
                 .collect(Collectors.toList());
         
@@ -133,9 +133,9 @@ public class LocationController {
      * Добавление комнаты в локацию
      */
     @PostMapping("/{locationId}/rooms")
-    public ResponseEntity<RoomDto> addRoom(
+    public ResponseEntity<RoomDTO> addRoom(
             @PathVariable UUID locationId,
-            @RequestBody RoomDto roomDto) {
+            @RequestBody RoomDTO roomDto) {
         
         Location location = locationService.getLocationById(locationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, 
@@ -155,10 +155,10 @@ public class LocationController {
      * Обновление комнаты
      */
     @PutMapping("/{locationId}/rooms/{roomId}")
-    public ResponseEntity<RoomDto> updateRoom(
+    public ResponseEntity<RoomDTO> updateRoom(
             @PathVariable UUID locationId,
             @PathVariable UUID roomId,
-            @RequestBody RoomDto roomDto) {
+            @RequestBody RoomDTO roomDto) {
         
         Location location = locationService.getLocationById(locationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, 
@@ -239,8 +239,8 @@ public class LocationController {
     /**
      * Конвертация модели комнаты в DTO
      */
-    private RoomDto convertToRoomDto(Room room) {
-        RoomDto dto = new RoomDto();
+    private RoomDTO convertToRoomDto(Room room) {
+        RoomDTO dto = new RoomDTO();
         dto.setId(room.getId());
         dto.setName(room.getName());
         dto.setFloor(room.getFloor());

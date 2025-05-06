@@ -1,0 +1,60 @@
+version: '3.0'
+services:
+  postgres:
+    restart: always
+    image: postgres:13
+    container_name: postgres
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: smarthome
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - smarthome-network
+
+  thingsboard:
+    restart: always
+    image: thingsboard/tb-postgres
+    container_name: thingsboard
+    depends_on:
+      - postgres
+    ports:
+      - "9090:9090"
+      - "7070:7070"
+      - "5683-5688:5683-5688/udp"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/thingsboard
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      TB_SERVICE_ID: tb-service
+      TB_SERVICE_TYPE: monolith
+      # Предоставляем доступ извне
+      HTTP_BIND_ADDRESS: 0.0.0.0
+      # Отключаем MQTT (будем использовать отдельный MQTT-брокер)
+      MQTT_ENABLED: "false"
+    volumes:
+      - ./tb-data:/data
+      - ./tb-logs:/var/log/thingsboard
+    networks:
+      - smarthome-network
+      
+  mqtt-broker:
+    image: eclipse-mosquitto:2
+    container_name: mqtt-broker
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+    networks:
+      - smarthome-network
+
+networks:
+  smarthome-network:
+    driver: bridge 

@@ -18,6 +18,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import com.example.Smarthome.dto.DeviceEventDto;
+import com.example.Smarthome.service.DeviceEventHandler;
+import org.springframework.context.annotation.Lazy;
 
 /**
  * Сервис для интеграции с ThingsBoard
@@ -41,6 +47,14 @@ public class ThingsBoardIntegrationService {
     private String thingsBoardPassword;
     
     private String accessToken;
+    
+    @Autowired
+    @Lazy
+    private DeviceEventHandler deviceEventHandler;
+    
+    @Autowired
+    @Lazy
+    private DeviceService deviceService;
     
     /**
      * Создает устройство в ThingsBoard
@@ -215,6 +229,48 @@ public class ThingsBoardIntegrationService {
     }
     
     /**
+     * Удаляет устройство из ThingsBoard
+     * @param device Устройство для удаления
+     * @return true если устройство успешно удалено
+     */
+    public boolean deleteDevice(Device device) {
+        if (!ensureAuthenticated() || device.getThingsboardDeviceId() == null) {
+            log.error("Не удалось аутентифицироваться в ThingsBoard или у устройства нет ThingsBoard ID");
+            return false;
+        }
+        
+        try {
+            String url = thingsBoardUrl + "/api/device/" + device.getThingsboardDeviceId();
+            log.info("Удаление устройства из ThingsBoard: {} (ID: {})", 
+                    device.getName(), device.getThingsboardDeviceId());
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("X-Authorization", "Bearer " + accessToken);
+            
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
+            
+            ResponseEntity<Void> response = restTemplate.exchange(
+                    url, 
+                    HttpMethod.DELETE, 
+                    entity, 
+                    Void.class);
+            
+            if (response.getStatusCode().is2xxSuccessful()) {
+                log.info("Устройство {} успешно удалено из ThingsBoard", device.getName());
+                return true;
+            } else {
+                log.error("Ошибка при удалении устройства {} из ThingsBoard. Код: {}", 
+                        device.getName(), response.getStatusCode());
+                return false;
+            }
+        } catch (RestClientException e) {
+            log.error("Ошибка при удалении устройства {} из ThingsBoard: {}", 
+                    device.getName(), e.getMessage(), e);
+            return false;
+        }
+    }
+    
+    /**
      * Обновляет атрибуты устройства в ThingsBoard
      * @param device Устройство, атрибуты которого нужно обновить
      * @return true если атрибуты успешно обновлены
@@ -277,6 +333,12 @@ public class ThingsBoardIntegrationService {
             return false;
         }
         
+        // Проверяем, не заблокирована ли синхронизация для устройства
+        if (device.getId() != null && deviceService.shouldBlockSync(device.getId())) {
+            log.debug("Синхронизация для устройства {} временно заблокирована, пропускаем отправку", device.getName());
+            return false;
+        }
+        
         try {
             String url = thingsBoardUrl + "/api/v1/" + device.getThingsboardToken() + "/telemetry";
             
@@ -300,15 +362,55 @@ public class ThingsBoardIntegrationService {
             // Добавляем статус устройства
             telemetry.put("status", device.getStatus().toString());
             
-            // Отправляем данные в ThingsBoard
-            ResponseEntity<Void> response = restTemplate.postForEntity(url, telemetry, Void.class);
+            // Максимальное количество попыток отправки
+            int maxAttempts = 3;
+            int attempt = 0;
+            boolean success = false;
+            ResponseEntity<Void> response = null;
             
-            log.debug("Данные устройства {} отправлены в ThingsBoard, ответ: {}", 
-                    device.getName(), response.getStatusCode());
+            // Цикл повторных попыток при ошибках
+            while (!success && attempt < maxAttempts) {
+                attempt++;
+                
+                try {
+                    // Отправляем данные в ThingsBoard
+                    response = restTemplate.postForEntity(url, telemetry, Void.class);
+                    success = response.getStatusCode().is2xxSuccessful();
+                    
+                    if (success) {
+                        log.debug("Данные устройства {} отправлены в ThingsBoard, ответ: {}", 
+                                device.getName(), response.getStatusCode());
+                    } else {
+                        log.warn("Ошибка при отправке данных устройства {} в ThingsBoard. Код: {}, Попытка: {}/{}", 
+                                device.getName(), response.getStatusCode(), attempt, maxAttempts);
+                        
+                        // Небольшая задержка перед повторной попыткой
+                        if (attempt < maxAttempts) {
+                            Thread.sleep(1000); // 1 секунда между попытками
+                        }
+                    }
+                } catch (RestClientException e) {
+                    log.error("Ошибка соединения при отправке данных устройства {} в ThingsBoard (попытка {}/{}): {}", 
+                            device.getName(), attempt, maxAttempts, e.getMessage());
+                    
+                    // Небольшая задержка перед повторной попыткой
+                    if (attempt < maxAttempts) {
+                        try {
+                            Thread.sleep(1000); // 1 секунда между попытками
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    log.error("Прерывание при ожидании между попытками отправки данных");
+                    break;
+                }
+            }
             
-            return response.getStatusCode().is2xxSuccessful();
-        } catch (RestClientException e) {
-            log.error("Ошибка при отправке данных устройства {} в ThingsBoard: {}", 
+            return success;
+        } catch (Exception e) {
+            log.error("Непредвиденная ошибка при отправке данных устройства {} в ThingsBoard: {}", 
                     device.getName(), e.getMessage(), e);
             return false;
         }
@@ -1126,5 +1228,50 @@ public class ThingsBoardIntegrationService {
         }
         
         return new ArrayList<>();
+    }
+
+    /**
+     * Обработчик сообщений от устройств
+     * @param deviceId ID устройства
+     * @param attributesData атрибуты устройства
+     */
+    private void handleDeviceAttributesUpdate(String deviceId, Map<String, String> attributesData) {
+        log.debug("Получены обновленные атрибуты устройства {}: {}", deviceId, attributesData);
+        
+        try {
+            // Обновляем состояние устройства в базе данных
+            Optional<Device> deviceOpt = deviceRepository.findById(UUID.fromString(deviceId));
+            if (deviceOpt.isPresent()) {
+                Device device = deviceOpt.get();
+                
+                // Обновляем свойства устройства
+                Map<String, String> properties = device.getProperties();
+                if (properties == null) {
+                    properties = new HashMap<>();
+                }
+                
+                // Добавляем или обновляем свойства
+                properties.putAll(attributesData);
+                device.setProperties(properties);
+                
+                // Обновляем онлайн статус
+                device.setLastSeen(LocalDateTime.now());
+                device.setOnline(true);
+                
+                // Сохраняем устройство
+                deviceRepository.save(device);
+                
+                // Отправляем событие обработчику
+                DeviceEventDto event = new DeviceEventDto();
+                event.setDeviceId(deviceId);
+                event.setEventType("ATTRIBUTES_UPDATED");
+                event.setAttributes(attributesData);
+                deviceEventHandler.handleDeviceEvent(event);
+            } else {
+                log.warn("Устройство с ID {} не найдено при обновлении атрибутов", deviceId);
+            }
+        } catch (Exception e) {
+            log.error("Ошибка при обработке обновления атрибутов устройства {}: {}", deviceId, e.getMessage(), e);
+        }
     }
 } 

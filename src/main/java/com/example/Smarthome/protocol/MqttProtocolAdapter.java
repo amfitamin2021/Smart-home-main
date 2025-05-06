@@ -53,6 +53,9 @@ public class MqttProtocolAdapter implements ProtocolAdapter {
             // Определяем топик для устройства, заменяя + на идентификатор устройства
             String topic = commandTopicTemplate.replace("+", deviceId);
             
+            log.debug("Отправка MQTT команды на устройство {} ({}), топик: {}, команда: {}", 
+                      device.getName(), deviceId, topic, command);
+            
             // Конвертируем в JSON
             String jsonPayload = objectMapper.writeValueAsString(payload);
             
@@ -61,10 +64,36 @@ public class MqttProtocolAdapter implements ProtocolAdapter {
             mqttMessage.setQos(1);
             mqttClient.publish(topic, mqttMessage);
             
-            log.debug("Отправлена команда на устройство {}: {}", device.getName(), jsonPayload);
+            log.info("Команда успешно отправлена на устройство {}: {}", device.getName(), jsonPayload);
+            
+            // Обновляем кэш свойств, если команда изменяет состояние
+            if (parameters.containsKey("state") || parameters.containsKey("value") || parameters.containsKey("power")) {
+                Map<String, String> updatedProperties = devicePropertiesCache.getOrDefault(deviceId, new HashMap<>());
+                
+                if (parameters.containsKey("state")) {
+                    updatedProperties.put("state", parameters.get("state"));
+                }
+                if (parameters.containsKey("power")) {
+                    updatedProperties.put("power", parameters.get("power"));
+                }
+                if (parameters.containsKey("value")) {
+                    updatedProperties.put("value", parameters.get("value"));
+                }
+                
+                devicePropertiesCache.put(deviceId, updatedProperties);
+            }
+            
             return true;
-        } catch (MqttException | JsonProcessingException e) {
-            log.error("Ошибка при отправке MQTT команды на устройство {}: {}", 
+        } catch (MqttException e) {
+            log.error("Ошибка MQTT при отправке команды на устройство {}: {}", 
+                    device.getName(), e.getMessage(), e);
+            return false;
+        } catch (JsonProcessingException e) {
+            log.error("Ошибка сериализации JSON при отправке команды на устройство {}: {}", 
+                    device.getName(), e.getMessage(), e);
+            return false;
+        } catch (Exception e) {
+            log.error("Непредвиденная ошибка при отправке команды на устройство {}: {}", 
                     device.getName(), e.getMessage(), e);
             return false;
         }

@@ -5,21 +5,26 @@ import org.eclipse.paho.client.mqttv3.MqttClient;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.integration.annotation.IntegrationComponentScan;
+import org.springframework.integration.annotation.ServiceActivator;
 import org.springframework.integration.channel.DirectChannel;
 import org.springframework.integration.core.MessageProducer;
 import org.springframework.integration.mqtt.core.DefaultMqttPahoClientFactory;
 import org.springframework.integration.mqtt.core.MqttPahoClientFactory;
 import org.springframework.integration.mqtt.inbound.MqttPahoMessageDrivenChannelAdapter;
+import org.springframework.integration.mqtt.outbound.MqttPahoMessageHandler;
 import org.springframework.integration.mqtt.support.DefaultPahoMessageConverter;
 import org.springframework.messaging.MessageChannel;
+import org.springframework.messaging.MessageHandler;
 
 @Configuration
 @IntegrationComponentScan
 @Profile("mqtt")
+@ConditionalOnProperty(name = "mqtt.enabled", havingValue = "true", matchIfMissing = true)
 public class MqttConfig {
 
     @Value("${mqtt.broker.url}")
@@ -33,6 +38,9 @@ public class MqttConfig {
     
     @Value("${mqtt.topics.discovery}")
     private String discoveryTopic;
+    
+    @Value("${mqtt.topics.command}")
+    private String commandTopic;
     
     @Bean
     public MqttPahoClientFactory mqttClientFactory() {

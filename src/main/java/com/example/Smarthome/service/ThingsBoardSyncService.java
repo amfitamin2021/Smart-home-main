@@ -90,11 +90,21 @@ public class ThingsBoardSyncService {
         log.info("Синхронизация телеметрии {} устройств из ThingsBoard", devices.size());
         
         int updatedCount = 0;
+        int blockedCount = 0;
+        
         for (Device device : devices) {
             try {
+                // Проверяем блокировку синхронизации
+                if (device.getId() != null && deviceService.shouldBlockSync(device.getId())) {
+                    log.debug("Устройство {} ({}) заблокировано для синхронизации", device.getName(), device.getId());
+                    blockedCount++;
+                    continue;
+                }
+                
                 boolean updated = syncDeviceTelemetryFromThingsBoard(device);
                 if (updated) {
                     updatedCount++;
+                    log.debug("Успешно обновлена телеметрия устройства {} из ThingsBoard", device.getName());
                 }
             } catch (Exception e) {
                 log.error("Ошибка при синхронизации телеметрии устройства {} из ThingsBoard: {}", 
@@ -102,7 +112,8 @@ public class ThingsBoardSyncService {
             }
         }
         
-        log.info("Синхронизация телеметрии из ThingsBoard завершена. Обновлено: {}/{}", updatedCount, devices.size());
+        log.info("Синхронизация телеметрии из ThingsBoard завершена. Обновлено: {}/{}, Заблокировано: {}", 
+               updatedCount, devices.size(), blockedCount);
     }
     
     /**
@@ -339,7 +350,7 @@ public class ThingsBoardSyncService {
     /**
      * Синхронизирует телеметрию одного устройства из ThingsBoard
      * @param device Устройство для синхронизации
-     * @return true если телеметрия была обновлена
+     * @return true если устройство было обновлено
      */
     private boolean syncDeviceTelemetryFromThingsBoard(Device device) {
         if (device.getThingsboardToken() == null || device.getThingsboardToken().isEmpty()) {
@@ -347,147 +358,36 @@ public class ThingsBoardSyncService {
             return false;
         }
         
-        boolean updated = false;
+        // Проверяем, не заблокирована ли синхронизация для устройства
+        if (device.getId() != null && deviceService.shouldBlockSync(device.getId())) {
+            log.debug("Синхронизация для устройства {} временно заблокирована, пропускаем обновление телеметрии", device.getName());
+            return false;
+        }
         
         try {
-            // 1. Получаем свежие атрибуты устройства 
-            // Используем существующий метод для синхронизации атрибутов
-            boolean attributesUpdated = syncDeviceFromThingsBoard(device);
-            if (attributesUpdated) {
-                updated = true;
-                log.info("Успешно обновлены атрибуты устройства {}", device.getName());
+            boolean updated = false;
+            
+            // Создаем ключи для свойств, которые мы хотим проверить
+            String[] keysToTest = {"power", "state", "brightness", "color", "temperature", "humidity", "locked"};
+            
+            for (String key : keysToTest) {
+                updated = testAndUpdateTelemetryPost(device, key, updated) || updated;
             }
             
-            // 2. Для получения телеметрии используем API v2, который требует аутентификации
-            // Сначала проверяем, что мы авторизованы
-            if (!thingsBoardService.ensureAuthenticated()) {
-                log.error("Не удалось аутентифицироваться в ThingsBoard для получения телеметрии");
-                return updated; // возвращаем updated, т.к. атрибуты могли обновиться
-            }
-            
-            // Получаем deviceId от ThingsBoard
-            String deviceId;
-            
-            // Если у устройства уже сохранен ThingsBoard ID
-            if (device.getThingsboardDeviceId() != null && !device.getThingsboardDeviceId().isEmpty()) {
-                deviceId = device.getThingsboardDeviceId();
-            } else {
-                // Если нет, получаем ID устройства по токену
-                deviceId = thingsBoardService.getDeviceIdByToken(device.getThingsboardToken());
-                if (deviceId == null) {
-                    log.error("Не удалось получить ID устройства по токену: {}", device.getThingsboardToken());
-                    return updated; // возвращаем updated, т.к. атрибуты могли обновиться
-                }
-                // Сохраняем ID для будущих запросов
-                device.setThingsboardDeviceId(deviceId);
+            // Если что-то обновилось, сохраняем устройство
+            if (updated) {
+                // Обновляем время последнего обновления
+                device.getProperties().put("tb_last_updated", LocalDateTime.now().toString());
                 deviceRepository.save(device);
-                updated = true; // ID обновлен
-            }
-            
-            // Используем API v2 для получения последних значений телеметрии
-            String telemetryUrl = thingsBoardUrl + "/api/plugins/telemetry/DEVICE/" + deviceId + "/values/timeseries";
-            log.info("Запрашиваем телеметрию устройства {} через API v2: {}", device.getName(), telemetryUrl);
-            
-            HttpHeaders headers = new HttpHeaders();
-            headers.set("X-Authorization", "Bearer " + thingsBoardService.getAccessToken());
-            
-            HttpEntity<Void> entity = new HttpEntity<>(headers);
-            
-            ResponseEntity<Map> telemetryResponse = restTemplate.exchange(
-                    telemetryUrl,
-                    HttpMethod.GET,
-                    entity,
-                    Map.class);
-            
-            log.info("Ответ на запрос телеметрии для {} (код {}): {}", 
-                    device.getName(), telemetryResponse.getStatusCode(), telemetryResponse.getBody());
-            
-            if (telemetryResponse.getStatusCode().is2xxSuccessful() && 
-                    telemetryResponse.getBody() != null && 
-                    !telemetryResponse.getBody().isEmpty()) {
                 
-                // Обрабатываем ответ с телеметрией в новом формате ThingsBoard v4
-                Map<String, Object> telemetryData = telemetryResponse.getBody();
-                log.info("Полученные данные телеметрии для {}: {}", device.getName(), telemetryData);
-                
-                boolean telemetryUpdated = false;
-                
-                // Сохраняем текущие ключи телеметрии
-                Set<String> currentKeys = new HashSet<>(telemetryData.keySet());
-                
-                // Создаем копию существующих свойств для поиска удаленных полей
-                Set<String> keysToRemove = new HashSet<>();
-                for (String key : device.getProperties().keySet()) {
-                    // Проверяем только поля телеметрии, не трогаем другие свойства
-                    if (key.startsWith("tb_") && !currentKeys.contains(key.substring(3))) {
-                        keysToRemove.add(key);
-                    }
-                }
-                
-                // Удаляем отсутствующие поля телеметрии
-                for (String key : keysToRemove) {
-                    device.getProperties().remove(key);
-                    telemetryUpdated = true;
-                    log.info("Удалено отсутствующее свойство телеметрии {} устройства {}", 
-                            key, device.getName());
-                }
-                
-                // Проходим по каждому ключу в телеметрии и обновляем свойства устройства
-                for (Map.Entry<String, Object> entry : telemetryData.entrySet()) {
-                    String key = entry.getKey();
-                    Object value = entry.getValue();
-                    
-                    // Извлекаем значение из различных форматов телеметрии
-                    String stringValue = extractValueFromTelemetry(value);
-                    if (stringValue != null) {
-                        // Сравниваем с текущим значением
-                        // Используем префикс tb_ для различения полей телеметрии от других свойств
-                        String propKey = "tb_" + key;
-                        String currentValue = device.getProperties().get(propKey);
-                        if (currentValue == null || !currentValue.equals(stringValue)) {
-                            device.getProperties().put(propKey, stringValue);
-                            telemetryUpdated = true;
-                            log.info("Обновлена телеметрия {} устройства {}: {} -> {}", 
-                                    key, device.getName(), currentValue, stringValue);
-                        }
-                    }
-                }
-                
-                // Если были обновления, сохраняем устройство
-                if (telemetryUpdated) {
-                    deviceRepository.save(device);
-                    log.info("Сохранены обновления телеметрии для устройства {}", device.getName());
-                    return true;
-                }
+                log.info("Телеметрия устройства {} обновлена из ThingsBoard", device.getName());
             } else {
-                log.warn("Нет данных телеметрии для устройства {} из ThingsBoard. Код: {}, Тело: {}", 
-                        device.getName(), telemetryResponse.getStatusCode(), telemetryResponse.getBody());
-                
-                // Пробуем получить конкретные ключи телеметрии
-                updated = testAndUpdateTelemetryPost(device, "status", updated);
-                updated = testAndUpdateTelemetryPost(device, "temperature", updated);
-                updated = testAndUpdateTelemetryPost(device, "humidity", updated);
-                updated = testAndUpdateTelemetryPost(device, "power", updated);
-                updated = testAndUpdateTelemetryPost(device, "brightness", updated);
-                updated = testAndUpdateTelemetryPost(device, "color", updated);
-                updated = testAndUpdateTelemetryPost(device, "startTs", updated);
-                updated = testAndUpdateTelemetryPost(device, "endTs", updated);
-                updated = testAndUpdateTelemetryPost(device, "keys", updated);
-                
-                // Добавляем специфичные ключи для устройства
-                updated = testAndUpdateTelemetryPost(device, "ewfwe", updated);
-                
-                // Если были обновления, сохраняем устройство
-                if (updated) {
-                    deviceRepository.save(device);
-                    log.info("Сохранены обновления отдельных ключей телеметрии для устройства {}", device.getName());
-                    return true;
-                }
+                log.debug("Телеметрия устройства {} не изменилась", device.getName());
             }
             
             return updated;
         } catch (Exception e) {
-            log.error("Ошибка при синхронизации данных устройства {} из ThingsBoard: {}", 
+            log.error("Ошибка при синхронизации телеметрии устройства {} из ThingsBoard: {}", 
                     device.getName(), e.getMessage(), e);
             return false;
         }
@@ -528,44 +428,55 @@ public class ThingsBoardSyncService {
             
             // Используем API v2 для получения последних значений телеметрии по конкретному ключу
             String specificUrl = thingsBoardUrl + "/api/plugins/telemetry/DEVICE/" + deviceId + "/values/timeseries?keys=" + key;
-            log.info("Пробуем получить телеметрию {} для устройства {} через API v2: {}", key, device.getName(), specificUrl);
+            log.debug("Пробуем получить телеметрию {} для устройства {} через API v2: {}", key, device.getName(), specificUrl);
             
             HttpHeaders headers = new HttpHeaders();
             headers.set("X-Authorization", "Bearer " + thingsBoardService.getAccessToken());
             
             HttpEntity<Void> entity = new HttpEntity<>(headers);
             
-            ResponseEntity<Map> response = restTemplate.exchange(
-                    specificUrl,
-                    HttpMethod.GET,
-                    entity,
-                    Map.class);
-            
-            if (response.getStatusCode().is2xxSuccessful() && 
-                    response.getBody() != null && 
-                    !response.getBody().isEmpty() && 
-                    response.getBody().containsKey(key)) {
+            try {
+                ResponseEntity<Map> response = restTemplate.exchange(
+                        specificUrl,
+                        HttpMethod.GET,
+                        entity,
+                        Map.class);
                 
-                Object value = response.getBody().get(key);
-                log.info("Получено значение для ключа {}: {}", key, value);
-                
-                String stringValue = extractValueFromTelemetry(value);
-                if (stringValue != null) {
-                    // Используем префикс tb_ для различения полей телеметрии от других свойств
-                    String propKey = "tb_" + key;
-                    String currentValue = device.getProperties().get(propKey);
-                    if (currentValue == null || !currentValue.equals(stringValue)) {
-                        device.getProperties().put(propKey, stringValue);
-                        log.info("Обновлена конкретная телеметрия {} устройства {}: {} -> {}", 
-                                key, device.getName(), currentValue, stringValue);
-                        return true;
+                if (response.getStatusCode().is2xxSuccessful() && 
+                        response.getBody() != null && 
+                        !response.getBody().isEmpty() && 
+                        response.getBody().containsKey(key)) {
+                    
+                    Object value = response.getBody().get(key);
+                    log.debug("Получено значение для ключа {}: {}", key, value);
+                    
+                    String stringValue = extractValueFromTelemetry(value);
+                    if (stringValue != null) {
+                        // Используем префикс tb_ для различения полей телеметрии от других свойств
+                        String propKey = "tb_" + key;
+                        String currentValue = device.getProperties().get(propKey);
+                        if (currentValue == null || !currentValue.equals(stringValue)) {
+                            device.getProperties().put(propKey, stringValue);
+                            log.info("Обновлена конкретная телеметрия {} устройства {}: {} -> {}", 
+                                    key, device.getName(), currentValue, stringValue);
+                            return true;
+                        }
                     }
+                } else if (response.getStatusCode().is4xxClientError()) {
+                    log.warn("Клиентская ошибка при получении телеметрии {} для устройства {}: код {}", 
+                            key, device.getName(), response.getStatusCode());
+                } else if (response.getStatusCode().is5xxServerError()) {
+                    log.error("Серверная ошибка ThingsBoard при получении телеметрии {} для устройства {}: код {}", 
+                            key, device.getName(), response.getStatusCode());
                 }
+            } catch (RestClientException e) {
+                log.error("Ошибка REST-клиента при получении телеметрии {} для устройства {}: {}", 
+                        key, device.getName(), e.getMessage());
             }
             
             return false;
         } catch (Exception e) {
-            log.debug("Не удалось получить телеметрию {} для устройства {}: {}", 
+            log.warn("Не удалось получить телеметрию {} для устройства {}: {}", 
                     key, device.getName(), e.getMessage());
             return false;
         }

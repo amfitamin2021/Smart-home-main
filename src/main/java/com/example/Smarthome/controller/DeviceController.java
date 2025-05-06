@@ -1,20 +1,24 @@
 package com.example.Smarthome.controller;
 
-import com.example.Smarthome.dto.AvailableDeviceDto;
 import com.example.Smarthome.dto.DeviceCommandRequest;
 import com.example.Smarthome.dto.DeviceDto;
+import com.example.Smarthome.dto.DeviceEventDto;
 import com.example.Smarthome.dto.DeviceRegistrationRequest;
+import com.example.Smarthome.dto.AvailableDeviceDto;
 import com.example.Smarthome.dto.LockHistoryDto;
+import com.example.Smarthome.dto.SensorHistoryDto;
 import com.example.Smarthome.model.ConnectionProtocol;
 import com.example.Smarthome.model.Device;
 import com.example.Smarthome.model.DeviceStatus;
 import com.example.Smarthome.model.Location;
 import com.example.Smarthome.model.Room;
+import com.example.Smarthome.service.DeviceEventHandler;
 import com.example.Smarthome.service.DeviceService;
+import com.example.Smarthome.service.LockHistoryService;
 import com.example.Smarthome.service.LocationService;
 import com.example.Smarthome.service.ProtocolAdapterService;
+import com.example.Smarthome.service.SensorHistoryService;
 import com.example.Smarthome.service.ThingsBoardIntegrationService;
-import com.example.Smarthome.service.LockHistoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -40,12 +44,16 @@ public class DeviceController {
     private final ThingsBoardIntegrationService thingsBoardService;
     private final LocationService locationService;
     private final LockHistoryService lockHistoryService;
+    private final SensorHistoryService sensorHistoryService;
+    private final DeviceEventHandler deviceEventHandler;
 
     /**
      * Получение списка всех устройств
      */
     @GetMapping
-    public ResponseEntity<List<DeviceDto>> getAllDevices() {
+    public ResponseEntity<List<DeviceDto>> getAllDevices(
+            @RequestHeader(name = "X-Auth-User-ID", required = false) String userId) {
+        log.info("Получен запрос на получение всех устройств от пользователя {}", userId);
         List<Device> devices = deviceService.getAllDevices();
         List<DeviceDto> deviceDtos = devices.stream()
                 .map(this::convertToDto)
@@ -281,188 +289,60 @@ public class DeviceController {
     }
 
     /**
-     * Отправка команды на устройство
+     * Отправка команды устройству
      */
     @PostMapping("/{id}/command")
-    public ResponseEntity<Map<String, Object>> sendCommand(@PathVariable UUID id, 
-                                                        @RequestBody DeviceCommandRequest request) {
-        Device device = deviceService.getDeviceById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, 
-                        "Устройство с ID " + id + " не найдено"));
+    public ResponseEntity<String> sendCommand(
+            @PathVariable UUID id, 
+            @RequestBody DeviceCommandRequest commandRequest,
+            @RequestHeader(name = "X-Auth-User-ID", required = false) String userId) {
+        log.info("Получен запрос на отправку команды устройству {} от пользователя {}", id, userId);
+        log.debug("Данные команды: {}", commandRequest);
         
-        // Для виртуальных устройств всегда устанавливаем статус ONLINE перед выполнением команды
-        if (device.getProtocol() == ConnectionProtocol.VIRTUAL) {
-            device.setStatus(DeviceStatus.ONLINE);
-            device.setLastSeen(LocalDateTime.now());
-            deviceService.saveDevice(device);
-        }
-        // Для других протоколов проверяем, что устройство онлайн
-        else if (device.getStatus() != DeviceStatus.ONLINE) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, 
-                    "Устройство " + device.getName() + " находится в состоянии OFFLINE");
+        String command = commandRequest.getCommand();
+        if (command == null) {
+            log.warn("Команда не указана для устройства {}", id);
+            return ResponseEntity.badRequest().body("Команда не указана");
         }
         
-        // Специальная обработка для команды updateTelemetry
-        if ("updateTelemetry".equals(request.getCommand())) {
-            Map<String, String> parameters = request.getParameters();
-            Map<String, Object> telemetryData = new HashMap<>();
+        try {
+            // Проверяем существование устройства
+            Device device = deviceService.getDeviceById(id)
+                .orElseThrow(() -> {
+                    log.error("Устройство с ID {} не найдено", id);
+                    return new ResponseStatusException(HttpStatus.NOT_FOUND, 
+                            "Устройство с ID " + id + " не найдено");
+                });
             
-            // Преобразуем параметры для телеметрии (без префиксов tb_)
-            // Телеметрия - это данные, которые хранятся отдельно от атрибутов в ThingsBoard
-            if (parameters.containsKey("humidity")) {
-                telemetryData.put("humidity", Integer.parseInt(parameters.get("humidity")));
+            log.info("Найдено устройство: {}, тип: {}, состояние: {}", device.getName(), device.getType(), device.getStatus());
+            
+            // Создаем Map из DTO для совместимости с существующим методом sendCommandToDevice
+            Map<String, String> commandData = new HashMap<>();
+            commandData.put("command", command);
+            if (commandRequest.getParameters() != null) {
+                commandData.putAll(commandRequest.getParameters());
             }
             
-            if (parameters.containsKey("battery")) {
-                telemetryData.put("battery", Integer.parseInt(parameters.get("battery")));
-            }
+            // Отправляем команду на устройство
+            boolean success = deviceService.sendCommandToDevice(id, command, commandData);
             
-            if (parameters.containsKey("temperature")) {
-                telemetryData.put("temperature", Integer.parseInt(parameters.get("temperature")));
-            }
-            
-            // Создаем final копию объекта device
-            final Device finalDevice = device;
-            
-            // Сохраняем свойства устройства локально
-            parameters.forEach((key, value) -> {
-                if (key.startsWith("tb_") || (!key.equals("humidity") && !key.equals("battery") && !key.equals("temperature"))) {
-                    finalDevice.getProperties().put(key, value);
-                }
-            });
-            
-            // Сохраняем устройство
-            deviceService.saveDevice(finalDevice);
-            
-            // Отправляем телеметрию в ThingsBoard, если есть данные
-            if (!telemetryData.isEmpty() && finalDevice.getThingsboardToken() != null) {
-                boolean success = thingsBoardService.sendTelemetry(finalDevice, telemetryData);
-                
-                if (!success) {
-                    log.warn("Не удалось отправить телеметрию в ThingsBoard для устройства {}", finalDevice.getName());
-                }
-            }
-            
-            // Возвращаем ответ
-            Map<String, Object> response = Map.of(
-                    "success", true,
-                    "device_id", id.toString(),
-                    "command", request.getCommand(),
-                    "parameters", request.getParameters(),
-                    "properties", finalDevice.getProperties()
-            );
-            
-            return ResponseEntity.ok(response);
-        }
-        
-        // Стандартная обработка для других команд
-        // Разделяем параметры на атрибуты и обычные свойства устройства
-        Map<String, String> deviceParameters = new HashMap<>();
-        Map<String, String> serverAttributes = new HashMap<>();
-        Map<String, String> clientAttributes = new HashMap<>();
-        Map<String, String> sharedAttributes = new HashMap<>();
-        
-        request.getParameters().forEach((key, value) -> {
-            if (key.startsWith("attr_server_")) {
-                // Серверные атрибуты
-                serverAttributes.put(key.substring("attr_server_".length()), value);
-            } else if (key.startsWith("attr_client_")) {
-                // Клиентские атрибуты
-                clientAttributes.put(key.substring("attr_client_".length()), value);
-            } else if (key.startsWith("attr_shared_")) {
-                // Shared атрибуты
-                sharedAttributes.put(key.substring("attr_shared_".length()), value);
+            if (success) {
+                log.info("Команда '{}' успешно отправлена устройству {} ({})", command, device.getName(), id);
+                return ResponseEntity.ok("Команда отправлена успешно");
             } else {
-                // Обычные свойства устройства
-                deviceParameters.put(key, value);
+                log.warn("Не удалось отправить команду '{}' устройству {} ({})", command, device.getName(), id);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Не удалось отправить команду устройству");
             }
-        });
-        
-        // Если есть атрибуты для обновления в ThingsBoard
-        if (!serverAttributes.isEmpty() || !clientAttributes.isEmpty() || !sharedAttributes.isEmpty()) {
-            if (device.getThingsboardToken() != null && !device.getThingsboardToken().isEmpty()) {
-                // Обновляем атрибуты в ThingsBoard
-                if (!serverAttributes.isEmpty()) {
-                    // Сохраняем серверные атрибуты в объекте устройства
-                    for (Map.Entry<String, String> entry : serverAttributes.entrySet()) {
-                        device.getProperties().put("attr_server_" + entry.getKey(), entry.getValue());
-                    }
-                    
-                    boolean updated = thingsBoardService.updateServerAttributes(device, serverAttributes);
-                    if (!updated) {
-                        log.warn("Не удалось обновить серверные атрибуты устройства {} в ThingsBoard", device.getName());
-                    } else {
-                        log.debug("Обновлены серверные атрибуты устройства {} в ThingsBoard: {}", device.getName(), serverAttributes);
-                    }
-                }
-                
-                if (!clientAttributes.isEmpty()) {
-                    // Сохраняем клиентские атрибуты в объекте устройства
-                    for (Map.Entry<String, String> entry : clientAttributes.entrySet()) {
-                        device.getProperties().put("attr_client_" + entry.getKey(), entry.getValue());
-                    }
-                    
-                    boolean updated = thingsBoardService.updateClientAttributes(device, clientAttributes);
-                    if (!updated) {
-                        log.warn("Не удалось обновить клиентские атрибуты устройства {} в ThingsBoard", device.getName());
-                    } else {
-                        log.debug("Обновлены клиентские атрибуты устройства {} в ThingsBoard: {}", device.getName(), clientAttributes);
-                    }
-                }
-                
-                if (!sharedAttributes.isEmpty()) {
-                    // Сохраняем shared атрибуты в объекте устройства
-                    for (Map.Entry<String, String> entry : sharedAttributes.entrySet()) {
-                        device.getProperties().put("attr_shared_" + entry.getKey(), entry.getValue());
-                    }
-                    
-                    boolean updated = thingsBoardService.updateSharedAttributes(device, sharedAttributes);
-                    if (!updated) {
-                        log.warn("Не удалось обновить shared атрибуты устройства {} в ThingsBoard", device.getName());
-                    } else {
-                        log.debug("Обновлены shared атрибуты устройства {} в ThingsBoard: {}", device.getName(), sharedAttributes);
-                    }
-                }
-                
-                // Сохраняем обновленное устройство
-                deviceService.saveDevice(device);
-            } else {
-                log.warn("Устройство {} не имеет токена ThingsBoard, атрибуты не были обновлены", device.getName());
-            }
+        } catch (ResponseStatusException e) {
+            log.error("Ошибка в запросе: {}", e.getReason());
+            throw e; // Пробрасываем исключение для стандартной обработки
+        } catch (Exception e) {
+            log.error("Ошибка при отправке команды '{}' устройству {}: {}", 
+                command, id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Ошибка при отправке команды: " + e.getMessage());
         }
-        
-        // Отправляем только обычные параметры на устройство
-        boolean success = true;
-        if (!deviceParameters.isEmpty()) {
-            success = deviceService.sendCommandToDevice(id, request.getCommand(), deviceParameters);
-            
-            if (!success) {
-                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
-                        "Ошибка при отправке команды на устройство");
-            }
-            
-            // Для команды setState сразу обновляем свойства устройства в базе данных
-            if ("setState".equals(request.getCommand())) {
-                deviceParameters.forEach((key, value) -> 
-                    deviceService.updateDeviceProperty(id, key, value));
-                
-                // Получаем обновленное устройство
-                device = deviceService.getDeviceById(id).orElseThrow();
-            }
-        }
-        
-        // Возвращаем обновленные свойства устройства
-        Map<String, String> updatedProperties = device.getProperties();
-        
-        Map<String, Object> response = Map.of(
-                "success", success,
-                "device_id", id.toString(),
-                "command", request.getCommand(),
-                "parameters", request.getParameters(),
-                "properties", updatedProperties
-        );
-        
-        return ResponseEntity.ok(response);
     }
 
     /**
@@ -904,5 +784,199 @@ public class DeviceController {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
                     "Внутренняя ошибка при добавлении истории замка: " + e.getMessage());
         }
+    }
+
+    /**
+     * Получение истории срабатывания датчиков
+     */
+    @GetMapping("/sensor-history")
+    public ResponseEntity<List<SensorHistoryDto>> getAllSensorHistory() {
+        log.info("Запрос истории всех датчиков");
+        
+        try {
+            // Получаем историю всех датчиков
+            List<SensorHistoryDto> history = sensorHistoryService.getAllSensorHistory();
+            log.info("Получена история всех датчиков: {} записей", history.size());
+            
+            return ResponseEntity.ok(history);
+        } catch (Exception e) {
+            log.error("Внутренняя ошибка при получении истории всех датчиков: {}", e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
+                    "Внутренняя ошибка при получении истории всех датчиков: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Получение истории срабатывания датчика по ID
+     */
+    @GetMapping("/{id}/sensor-history")
+    public ResponseEntity<List<SensorHistoryDto>> getSensorHistory(
+            @PathVariable UUID id) {
+        log.info("Запрос истории датчика с ID: {}", id);
+        
+        try {
+            // Проверяем, существует ли устройство
+            Device device = deviceService.getDeviceById(id)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, 
+                            "Устройство с ID " + id + " не найдено"));
+            
+            // Получаем историю датчика
+            List<SensorHistoryDto> history = sensorHistoryService.getSensorHistoryByDeviceId(id);
+            log.info("Получена история датчика: {} записей", history.size());
+            
+            return ResponseEntity.ok(history);
+        } catch (ResponseStatusException e) {
+            log.error("Ошибка при получении истории датчика: {}", e.getReason());
+            throw e;
+        } catch (Exception e) {
+            log.error("Внутренняя ошибка при получении истории датчика: {}", e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
+                    "Внутренняя ошибка при получении истории датчика: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Добавление записи в историю датчика
+     */
+    @PostMapping("/{id}/sensor-history")
+    public ResponseEntity<SensorHistoryDto> addSensorHistoryEntry(
+            @PathVariable UUID id, 
+            @RequestBody SensorHistoryDto historyDto) {
+        log.info("Запрос на добавление записи в историю датчика с ID: {}", id);
+        
+        try {
+            // Проверяем, существует ли устройство
+            Device device = deviceService.getDeviceById(id)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, 
+                            "Устройство с ID " + id + " не найдено"));
+            
+            // Добавляем запись в историю
+            SensorHistoryDto savedEntry = sensorHistoryService.addSensorHistoryEntry(id, historyDto);
+            log.info("Добавлена запись в историю датчика с ID: {}", id);
+            
+            return ResponseEntity.ok(savedEntry);
+        } catch (ResponseStatusException e) {
+            log.error("Ошибка при добавлении записи в историю датчика: {}", e.getReason());
+            throw e;
+        } catch (Exception e) {
+            log.error("Внутренняя ошибка при добавлении записи в историю датчика: {}", e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
+                    "Внутренняя ошибка при добавлении записи в историю датчика: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Подтверждение записи в истории датчика
+     */
+    @PutMapping("/sensor-history/{entryId}/acknowledge")
+    public ResponseEntity<SensorHistoryDto> acknowledgeSensorHistoryEntry(
+            @PathVariable UUID entryId) {
+        log.info("Запрос на подтверждение записи в истории с ID: {}", entryId);
+        
+        try {
+            // Обновляем статус подтверждения
+            SensorHistoryDto updatedEntry = sensorHistoryService.updateAcknowledgedStatus(entryId, true);
+            log.info("Подтверждена запись в истории с ID: {}", entryId);
+            
+            return ResponseEntity.ok(updatedEntry);
+        } catch (IllegalArgumentException e) {
+            log.error("Запись не найдена: {}", entryId);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Запись не найдена: " + e.getMessage());
+        } catch (Exception e) {
+            log.error("Внутренняя ошибка при подтверждении записи: {}", e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
+                    "Внутренняя ошибка при подтверждении записи: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Подтверждение всех записей в истории датчиков
+     */
+    @PostMapping("/sensor-history/acknowledge-all")
+    public ResponseEntity<Map<String, Object>> acknowledgeAllSensorHistory() {
+        log.info("Запрос на подтверждение всех записей в истории датчиков");
+        
+        try {
+            // Подтверждаем все записи
+            int count = sensorHistoryService.acknowledgeAllEvents();
+            log.info("Подтверждено записей: {}", count);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("acknowledgedCount", count);
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Внутренняя ошибка при подтверждении всех записей: {}", e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
+                    "Внутренняя ошибка при подтверждении всех записей: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Подтверждение всех записей в истории конкретного датчика
+     */
+    @PostMapping("/{id}/sensor-history/acknowledge-all")
+    public ResponseEntity<Map<String, Object>> acknowledgeAllSensorHistoryForDevice(
+            @PathVariable UUID id) {
+        log.info("Запрос на подтверждение всех записей в истории датчика с ID: {}", id);
+        
+        try {
+            // Проверяем, существует ли устройство
+            deviceService.getDeviceById(id)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, 
+                            "Устройство с ID " + id + " не найдено"));
+            
+            // Подтверждаем все записи для устройства
+            int count = sensorHistoryService.acknowledgeAllEventsForDevice(id);
+            log.info("Подтверждено записей для датчика {}: {}", id, count);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("acknowledgedCount", count);
+            
+            return ResponseEntity.ok(response);
+        } catch (ResponseStatusException e) {
+            log.error("Ошибка при подтверждении записей: {}", e.getReason());
+            throw e;
+        } catch (Exception e) {
+            log.error("Внутренняя ошибка при подтверждении записей: {}", e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
+                    "Внутренняя ошибка при подтверждении записей: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Удаление всех устройств из системы
+     */
+    @DeleteMapping("/all")
+    public ResponseEntity<Map<String, String>> deleteAllDevices() {
+        log.info("Получен запрос на удаление всех устройств");
+        
+        // Получаем список всех устройств
+        List<Device> devices = deviceService.getAllDevices();
+        int count = devices.size();
+        
+        // Удаляем все устройства из ThingsBoard, если необходимо
+        for (Device device : devices) {
+            if (device.getThingsboardDeviceId() != null && !device.getThingsboardDeviceId().isEmpty()) {
+                try {
+                    thingsBoardService.deleteDevice(device);
+                    log.info("Устройство {} удалено из ThingsBoard", device.getName());
+                } catch (Exception e) {
+                    log.error("Ошибка при удалении устройства {} из ThingsBoard: {}", 
+                            device.getName(), e.getMessage());
+                }
+            }
+        }
+        
+        // Удаляем все устройства из базы данных
+        deviceService.deleteAllDevices();
+        
+        Map<String, String> response = new HashMap<>();
+        response.put("status", "success");
+        response.put("message", "Удалено " + count + " устройств");
+        
+        return ResponseEntity.ok(response);
     }
 } 

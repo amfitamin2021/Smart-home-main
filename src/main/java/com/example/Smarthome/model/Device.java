@@ -2,6 +2,7 @@ package com.example.Smarthome.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
@@ -10,6 +11,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "devices")
 @Data
+@JsonIgnoreProperties({"location.rooms", "location.devices", "room.location"})
 public class Device {
 
     @Id
@@ -31,6 +33,9 @@ public class Device {
     
     private String connectionParams;
     private LocalDateTime lastSeen;
+    
+    // Поле для отслеживания онлайн-статуса устройства
+    private boolean online = false;
     
     // Динамические свойства устройства
     @ElementCollection(fetch = FetchType.EAGER)
@@ -92,5 +97,21 @@ public class Device {
             attributes = new HashMap<>();
         }
         attributes.put(key, value != null ? value.toString() : null);
+    }
+    
+    /**
+     * Проверяет, находится ли устройство в онлайн-режиме
+     * @return true, если устройство онлайн
+     */
+    public boolean isOnline() {
+        return online;
+    }
+    
+    /**
+     * Устанавливает онлайн-статус устройства
+     * @param online статус устройства
+     */
+    public void setOnline(boolean online) {
+        this.online = online;
     }
 } 

@@ -7,6 +7,8 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
 
+import java.util.Arrays;
+
 @Configuration
 public class AppConfig {
 
@@ -26,11 +28,13 @@ public class AppConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         CorsConfiguration config = new CorsConfiguration();
         
-        // Разрешаем запросы с любых источников
+        // Разрешаем запросы только с нашего фронтенда
         config.setAllowCredentials(true);
-        config.addAllowedOriginPattern("*");
-        config.addAllowedHeader("*");
-        config.addAllowedMethod("*");
+        config.addAllowedOrigin("http://localhost:5173");
+        config.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "x-auth-token", "X-Auth-User-ID"));
+        config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        config.setExposedHeaders(Arrays.asList("x-auth-token"));
+        config.setMaxAge(3600L);
         
         source.registerCorsConfiguration("/**", config);
         return new CorsFilter(source);
